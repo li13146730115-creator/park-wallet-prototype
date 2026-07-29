@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>付款码</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .payment-code-page { padding: 14px var(--page-padding) 18px; }
+    .payment-code-panel { background: var(--card-bg); border-radius: var(--radius-card); box-shadow: var(--shadow-card); padding: 22px 18px 20px; text-align: center; }
+    .payment-code-panel h1 { margin: 0 0 18px; font-size: 18px; }
+    .payment-code-tip { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+    .payment-code-guide { margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--divider); color: var(--ink-light); font-size: 13px; line-height: 1.7; }
+    .payment-code-actions { margin-top: 18px; }
+    .payment-code-actions .btn { width: 100%; min-height: 42px; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="mobile-page">
+    <div class="phone-shell">
+      <div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div>
+      <div class="app-shell">
+        <header class="topbar"><a href="user-wallet.html" class="back" aria-label="返回">‹</a><strong>付款码</strong><span aria-hidden="true"></span></header>
+        <main class="payment-code-page">
+          <section class="payment-code-panel" aria-labelledby="payment-code-title">
+            <h1 id="payment-code-title">储值付款码</h1>
+            <div id="qr-code" class="dynamic-qr dynamic-qr-payment" role="img" aria-label="储值付款二维码"></div>
+            <p id="refresh-tip" class="payment-code-tip">60 秒后自动刷新</p>
+            <p class="payment-code-guide">付款时向园区商户出示此码。</p>
+            <div class="payment-code-actions">
+              <a class="btn btn-primary" id="scan-link" href="merchant-scan.html">模拟商户扫码</a>
+            </div>
+          </section>
+        </main>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+      const qr = document.getElementById('qr-code');
+      const refreshTip = document.getElementById('refresh-tip');
+      let secondsRemaining = 60;
+      let refreshTimer = null;
+
+      function renderQR() {
+        qr.innerHTML = '';
+        for (let i = 0; i < 25 * 25; i++) {
+          const cell = document.createElement('span');
+          cell.className = Math.random() < 0.5 ? 'filled' : '';
+          qr.appendChild(cell);
+        }
+      }
+
+      function refreshCode() {
+        renderQR();
+        secondsRemaining = 60;
+        refreshTip.textContent = '60 秒后自动刷新';
+      }
+
+      function startRefreshTimer() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(() => {
+          secondsRemaining -= 1;
+          if (secondsRemaining <= 0) refreshCode();
+          else refreshTip.textContent = secondsRemaining + ' 秒后自动刷新';
+        }, 1000);
+      }
+
+      window.addEventListener('pagehide', () => { if (refreshTimer) clearInterval(refreshTimer); });
+      refreshCode();
+      startRefreshTimer();
+    })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商户与结算配置 - 园区储值管理后台</title>
+    <link rel="stylesheet" href="shared-styles.css">
+    <style>
+        .admin-toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .admin-toolbar input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+        .link { color: var(--info); cursor: pointer; background: none; border: none; padding: 0; font: inherit; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); align-items: center; justify-content: center; z-index: 1000; }
+        .modal.show { display: flex; }
+        .modal-content { background: #fff; border-radius: 12px; width: 560px; max-width: 90%; max-height: 90vh; overflow: auto; }
+        .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--divider); display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; }
+        .modal-footer { padding: 12px 20px; border-top: 1px solid var(--divider); text-align: right; display: flex; gap: 10px; justify-content: flex-end; }
+        .close { font-size: 24px; color: var(--muted); cursor: pointer; background: none; border: none; padding: 0; }
+        .form-row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; margin-bottom: 14px; }
+        .form-row label { color: var(--muted); font-size: 14px; }
+        .form-row input, .form-row select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="admin-layout">
+        <aside class="admin-sidebar">
+            <div class="brand">海智园区 · 储值后台</div>
+            <nav>
+                <a href="admin-accounts.html">储值账户</a>
+                
+                <a href="admin-orders.html">订单管理</a>
+                <a href="admin-refunds.html">退款审核</a>
+                <a href="admin-settlements.html">分账管理</a><a class="active" href="admin-merchants.html">商户配置</a>
+            </nav>
+        </aside>
+        <main class="admin-content">
+            <div class="admin-header">
+                <h1>商户与结算配置</h1>
+                <div>管理员</div>
+            </div>
+            <div class="admin-table">
+                <div class="admin-toolbar">
+                    <input id="merchantSearch" type="text" placeholder="搜索商户名称">
+                    <button id="searchButton" class="btn btn-primary" type="button">查询</button>
+                    <button id="createButton" class="btn btn-white" type="button">新增商户</button>
+                    <button id="exportButton" class="btn btn-white" type="button">导出 CSV</button>
+                </div>
+                <table id="merchants-table">
+                    <thead>
+                        <tr>
+                            <th>商户名称</th>
+                            <th>分账比例</th>
+                            <th>结算周期</th>
+                            <th>退款窗口（小时）</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="merchantTable"></tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <div id="merchantModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="merchantModalTitle">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="merchantModalTitle">商户配置详情</span>
+                <button id="modalCloseButton" class="close" type="button" aria-label="关闭">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label for="mName">商户名称</label>
+                    <input type="text" id="mName">
+                </div>
+                <div class="form-row">
+                    <label for="mRatio">分账比例</label>
+                    <input type="number" id="mRatio" step="0.01" min="0" max="1">
+                </div>
+                <div class="form-row">
+                    <label for="mCycle">结算周期</label>
+                    <select id="mCycle">
+                        <option>T+1</option>
+                        <option>周结</option>
+                        <option>月结</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label for="mRefundWindow">退款窗口（小时）</label>
+                    <input type="number" id="mRefundWindow" min="0" step="1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelButton" class="btn btn-white" type="button">关闭</button>
+                <button id="saveButton" class="btn btn-primary" type="button">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="shared-state.js"></script>
+    <script src="admin-utils.js"></script>
+    <script>
+        (function () {
+            'use strict';
+
+            const state = parkState.state;
+            const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
+            const merchantConfig = state.merchantConfig;
+            const tbody = document.getElementById('merchantTable');
+            const modal = document.getElementById('merchantModal');
+            const searchInput = document.getElementById('merchantSearch');
+            const nameInput = document.getElementById('mName');
+            const ratioInput = document.getElementById('mRatio');
+            const cycleInput = document.getElementById('mCycle');
+            const refundWindowInput = document.getElementById('mRefundWindow');
+            let currentMerchantId = null;
+
+            function parkMerchants() {
+                return (state.merchants || []).filter(function (item) { return item.parkId === parkId; });
+            }
+
+            function appendCell(row, value) {
+                const cell = document.createElement('td');
+                cell.textContent = String(value);
+                row.appendChild(cell);
+            }
+
+            function renderTable() {
+                tbody.replaceChildren();
+                const keyword = searchInput.value.trim().toLowerCase();
+                parkMerchants().forEach(function (merchant) {
+                    const id = merchant.id;
+                    const cfg = merchantConfig[id] || { name: merchant.name, ratio: 1, cycle: 'T+1', refundWindowHours: 24 };
+                    if (keyword && !cfg.name.toLowerCase().includes(keyword)) return;
+                    const row = document.createElement('tr');
+                    appendCell(row, cfg.name);
+                    appendCell(row, (cfg.ratio * 100).toFixed(0) + '%');
+                    appendCell(row, cfg.cycle);
+                    appendCell(row, cfg.refundWindowHours);
+
+                    const actionCell = document.createElement('td');
+                    const editButton = document.createElement('button');
+                    editButton.type = 'button';
+                    editButton.className = 'link';
+                    editButton.textContent = '查看/编辑';
+                    editButton.addEventListener('click', function () {
+                        openModal(id);
+                    });
+                    actionCell.appendChild(editButton);
+                    row.appendChild(actionCell);
+                    tbody.appendChild(row);
+                });
+            }
+
+            function openModal(id) {
+                const merchant = parkMerchants().find(function (item) { return item.id === id; });
+                if (!merchant) return;
+                const cfg = merchantConfig[id] || { name: merchant.name, ratio: 1, cycle: 'T+1', refundWindowHours: 24 };
+                currentMerchantId = id;
+                document.getElementById('merchantModalTitle').textContent = '编辑商户配置';
+                nameInput.value = cfg.name;
+                ratioInput.value = cfg.ratio;
+                cycleInput.value = cfg.cycle;
+                refundWindowInput.value = cfg.refundWindowHours;
+                modal.classList.add('show');
+            }
+
+            function openCreateModal() {
+                currentMerchantId = null;
+                document.getElementById('merchantModalTitle').textContent = '新增商户';
+                nameInput.value = '';
+                ratioInput.value = '';
+                cycleInput.value = 'T+1';
+                refundWindowInput.value = '24';
+                modal.classList.add('show');
+            }
+
+            function closeModal() {
+                modal.classList.remove('show');
+            }
+
+            function restoreSnapshot(snapshot) {
+                Object.keys(merchantConfig).forEach(function (id) {
+                    delete merchantConfig[id];
+                });
+                Object.entries(snapshot.config).forEach(function ([id, cfg]) {
+                    merchantConfig[id] = cfg;
+                });
+                state.merchants.length = 0;
+                snapshot.merchants.forEach(function (item) {
+                    state.merchants.push(item);
+                });
+            }
+
+            function nextMerchantId() {
+                const ids = (state.merchants || [])
+                    .map(function (item) { return item.id; })
+                    .filter(function (id) { return /^M\d+$/.test(id); })
+                    .map(function (id) { return Number(id.slice(1)); });
+                const next = ids.length ? Math.max.apply(null, ids) + 1 : 1;
+                return 'M' + String(next).padStart(3, '0');
+            }
+
+            function saveMerchant() {
+                const name = nameInput.value.trim();
+                const ratio = Number(ratioInput.value);
+                const refundWindowText = refundWindowInput.value.trim();
+                const refundWindowHours = Number(refundWindowText);
+
+                if (!name) {
+                    alert('请输入商户名称');
+                    return;
+                }
+                if (ratioInput.value.trim() === '' || !Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+                    alert('分账比例必须是 0 到 1（含边界）内的有限数');
+                    return;
+                }
+                if (!/^\d+$/.test(refundWindowText) || !Number.isFinite(refundWindowHours) || !Number.isInteger(refundWindowHours)) {
+                    alert('退款窗口必须是非负整数');
+                    return;
+                }
+
+                const snapshot = {
+                    config: JSON.parse(JSON.stringify(merchantConfig)),
+                    merchants: JSON.parse(JSON.stringify(state.merchants))
+                };
+                const targetId = currentMerchantId || nextMerchantId();
+                const previousConfig = merchantConfig[targetId];
+                merchantConfig[targetId] = {
+                    name: name,
+                    ratio: ratio,
+                    cycle: cycleInput.value,
+                    refundWindowHours: refundWindowHours,
+                    prefix: previousConfig && previousConfig.prefix ? previousConfig.prefix : 'SHOP'
+                };
+                const merchantEntity = (state.merchants || []).find(function (item) { return item.id === targetId; });
+                if (merchantEntity) {
+                    merchantEntity.name = name;
+                } else {
+                    state.merchants.push({ id: targetId, parkId: parkId, name: name });
+                }
+
+                if (!parkState.save()) {
+                    restoreSnapshot(snapshot);
+                    renderTable();
+                    alert('保存失败，已恢复修改前的配置');
+                    return;
+                }
+
+                renderTable();
+                closeModal();
+                alert('保存成功');
+            }
+
+            document.getElementById('searchButton').addEventListener('click', renderTable);
+            document.getElementById('createButton').addEventListener('click', openCreateModal);
+            document.getElementById('exportButton').addEventListener('click', function () {
+                exportTableCsv('merchants-table', '商户配置');
+            });
+            document.getElementById('modalCloseButton').addEventListener('click', closeModal);
+            document.getElementById('cancelButton').addEventListener('click', closeModal);
+            document.getElementById('saveButton').addEventListener('click', saveMerchant);
+            searchInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') renderTable();
+            });
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) closeModal();
+            });
+
+            renderTable();
+        })();
+    </script>
+</body>
+</html>

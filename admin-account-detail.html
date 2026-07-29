@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>储值用户详情 - 园区储值管理后台</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .back-link { display: inline-flex; align-items: center; gap: 4px; color: var(--info); text-decoration: none; font-size: 14px; margin-bottom: 12px; }
+    .user-info-card { display: flex; gap: 24px; padding: 16px; background: #fff; border-radius: var(--radius-card); box-shadow: var(--shadow-card); margin-bottom: 20px; }
+    .user-info-card div { flex: 1; }
+    .user-info-card label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .user-info-card b { font-size: 16px; }
+    .section-title { margin: 24px 0 12px; font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 储值后台</div>
+      <nav>
+        <a href="admin-accounts.html" class="active">储值账户</a>
+        
+        <a href="admin-orders.html">订单管理</a>
+        <a href="admin-refunds.html">退款审核</a>
+        <a href="admin-settlements.html">分账管理</a><a href="admin-merchants.html">商户配置</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header"><h1>储值用户详情</h1><div>管理员</div></div>
+      <a href="admin-accounts.html" class="back-link">‹ 返回账户列表</a>
+
+      <div class="user-info-card" id="user-card">
+        <div><label>用户姓名</label><b id="user-name">-</b></div>
+        <div><label>手机号</label><b id="user-phone">-</b></div>
+        <div><label>所属企业</label><b id="user-enterprise">-</b></div>
+        <div><label>当前余额</label><b id="user-balance">¥0.00</b></div>
+      </div>
+
+      <h2 class="section-title">储值信息</h2>
+      <div class="admin-table">
+        <table id="recharges-table">
+          <thead><tr><th>储值金额</th><th>储值时间</th><th>支付方式</th></tr></thead>
+          <tbody id="recharges-body"></tbody>
+        </table>
+      </div>
+
+      <h2 class="section-title">交易明细</h2>
+      <div class="admin-table">
+        <table id="transactions-table">
+          <thead><tr><th>订单编号</th><th>订单金额</th><th>商户信息</th><th>交易时间</th><th>状态</th></tr></thead>
+          <tbody id="transactions-body"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+  <script src="shared-state.js"></script>
+  <script src="admin-utils.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const state = window.parkState.state;
+      const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
+      const userId = new URLSearchParams(location.search).get('userId') || 'U001';
+      const account = (state.accounts || []).find(function (item) { return item.parkId === parkId && item.userId === userId; }) || null;
+      const user = account ? (state.users || []).find(function (item) { return item.parkId === parkId && item.id === account.userId; }) : null;
+      const merchants = (state.merchants || []).filter(function (item) { return item.parkId === parkId; });
+      const transactions = account ? (state.transactions || []).filter(function (t) { return t.parkId === parkId && t.userId === account.userId; }) : [];
+      const orders = account ? (state.orders || []).filter(function (o) { return o.parkId === parkId && o.userId === account.userId; }) : [];
+
+      function money(value) { return '¥' + formatMoney(Number(value) || 0); }
+      function merchantName(order) {
+        const merchant = merchants.find(function (m) { return m.id === order.merchantId; });
+        return merchant ? merchant.name : (order.merchantName || '-');
+      }
+      function emptyRow(colspan, message) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = colspan;
+        cell.className = 'text-center text-muted';
+        cell.textContent = message;
+        row.appendChild(cell);
+        return row;
+      }
+      function appendCell(row, value, className) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        if (className) cell.className = className;
+        row.appendChild(cell);
+        return cell;
+      }
+      function orderStatusLabel(order) {
+        if (order.status === 'paid') return ['交易成功', 'tag-success'];
+        if (order.status === 'refunding') return ['退款中', 'tag-info'];
+        if (order.status === 'refunded') return ['退款', 'tag-info'];
+        return ['支付失败', 'tag-error'];
+      }
+
+      function renderMissing() {
+        document.getElementById('user-name').textContent = '用户不存在';
+        document.getElementById('user-phone').textContent = '-';
+        document.getElementById('user-enterprise').textContent = '-';
+        document.getElementById('user-balance').textContent = '-';
+        document.getElementById('recharges-body').replaceChildren(emptyRow(3, '当前园区不存在该用户'));
+        document.getElementById('transactions-body').replaceChildren(emptyRow(5, '当前园区不存在该用户'));
+      }
+
+      function renderRecharges() {
+        const body = document.getElementById('recharges-body');
+        body.replaceChildren();
+        const recharges = transactions.filter(function (t) { return t.type === 'recharge'; }).sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); });
+        if (!recharges.length) {
+          body.appendChild(emptyRow(3, '暂无储值记录'));
+          return;
+        }
+        recharges.forEach(function (r) {
+          const row = document.createElement('tr');
+          appendCell(row, money(r.amount), 'amount-plus');
+          appendCell(row, r.time);
+          appendCell(row, r.channel || '-');
+          body.appendChild(row);
+        });
+      }
+
+      function renderTransactions() {
+        const body = document.getElementById('transactions-body');
+        body.replaceChildren();
+        const rows = orders.slice().sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); });
+        if (!rows.length) {
+          body.appendChild(emptyRow(5, '暂无交易明细'));
+          return;
+        }
+        rows.forEach(function (order) {
+          const row = document.createElement('tr');
+          const status = orderStatusLabel(order);
+          appendCell(row, order.id);
+          appendCell(row, money(order.amount));
+          appendCell(row, merchantName(order));
+          appendCell(row, order.time || '-');
+          appendCell(row, status[0], 'tag ' + status[1]);
+          body.appendChild(row);
+        });
+      }
+
+      if (!account || !user) {
+        renderMissing();
+        return;
+      }
+      document.getElementById('user-name').textContent = user.name;
+      document.getElementById('user-phone').textContent = user.phone;
+      document.getElementById('user-enterprise').textContent = user.enterpriseName || '-';
+      document.getElementById('user-balance').textContent = money(account.total);
+      renderRecharges();
+      renderTransactions();
+    })();
+  </script>
+</body>
+</html>

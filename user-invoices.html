@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>充值明细</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content { padding: 0 var(--page-padding) 18px; }
+    .recharge-list { display: grid; gap: 10px; }
+    .invoice-record { background: var(--card-bg); border-radius: var(--radius-card); box-shadow: var(--shadow-card); padding: 15px 16px; cursor: pointer; }
+    .record-head, .record-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .record-head b { font-size: 15px; color: var(--ink); }
+    .record-amount { font-size: 18px; font-weight: 700; color: var(--ink); }
+    .record-meta { margin: 7px 0 12px; font-size: 12px; color: var(--muted); }
+    .record-status { font-size: 12px; font-weight: 650; }
+    .status-uninvoiced { color: #d97706; }
+    .status-processing { color: var(--info); }
+    .status-complete { color: #16803c; }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 13px; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(13,22,38,.55); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 200; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: var(--card-bg); border-radius: var(--radius-card); width: 100%; max-width: 340px; padding: 20px; box-shadow: var(--shadow-float); max-height: 82vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-header b { font-size: 16px; }
+    .modal-close { width: 28px; height: 28px; border-radius: 50%; background: var(--page-bg); color: var(--muted); display: grid; place-items: center; font-size: 18px; cursor: pointer; }
+    .apply-section-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .apply-order-card { background: var(--page-bg); border-radius: var(--radius-small); padding: 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .apply-order-main { flex: 1; min-width: 0; }
+    .apply-order-main b { display: block; font-size: 14px; }
+    .apply-order-main span { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .apply-order-amount { font-size: 18px; font-weight: 700; }
+    .title-select { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; width: 100%; margin-bottom: 10px; background: #fff; }
+    .apply-title-card { background: var(--page-bg); border-radius: var(--radius-small); padding: 12px 14px; margin-bottom: 12px; }
+    .apply-title-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+    .apply-title-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 12px; }
+    .apply-title-row label { color: var(--muted); flex: 0 0 auto; }
+    .apply-title-row span { text-align: right; overflow-wrap: anywhere; }
+    .form-grid { display: grid; gap: 12px; }
+    .form-grid label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+    .form-grid input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+    .checkbox { display: flex; align-items: center; gap: 8px; }
+    .checkbox input { width: auto; }
+    .apply-add-entry { display: block; width: 100%; margin-top: 10px; padding: 11px 0; border: 1px dashed var(--border); border-radius: var(--radius-small); background: transparent; color: var(--info); font-size: 13px; text-align: center; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="mobile-page"><div class="phone-shell">
+    <div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div>
+    <div class="app-shell">
+      <header class="topbar"><a href="user-wallet.html" class="back">‹</a><strong>充值明细</strong><span></span></header>
+      <main class="app-content"><div id="apply-list" class="recharge-list"></div></main>
+      <div class="home-bar"></div>
+    </div>
+  </div></div>
+
+  <div class="modal-overlay" id="apply-modal"><div class="modal-box">
+    <div class="modal-header"><b>申请开票</b><span class="modal-close" id="apply-modal-close">×</span></div>
+    <div class="apply-section-title">开票订单</div><div class="apply-order-card" id="apply-order-card"></div>
+    <div class="apply-section-title">发票抬头</div>
+    <select class="title-select" id="title-select"></select><div class="apply-title-card" id="apply-title-card"></div>
+    <button class="btn btn-primary btn-block" id="confirm-apply">确认申请开票</button>
+    <button type="button" class="apply-add-entry" id="apply-add-entry">无发票抬头？点击新增</button>
+  </div></div>
+
+  <div class="modal-overlay" id="title-modal"><div class="modal-box">
+    <div class="modal-header"><b id="title-modal-title">新增发票抬头</b><span class="modal-close" id="title-modal-close">×</span></div>
+    <div class="form-grid">
+      <div><label>名称</label><input type="text" id="title-name"></div><div><label>税号</label><input type="text" id="title-tax"></div>
+      <div><label>单位地址</label><input type="text" id="title-address"></div><div><label>电话</label><input type="text" id="title-phone"></div>
+      <div><label>开户行</label><input type="text" id="title-bank"></div><div><label>银行账户</label><input type="text" id="title-account"></div>
+      <div class="checkbox"><input type="checkbox" id="title-default"><label for="title-default">设为默认抬头</label></div>
+    </div>
+    <button class="btn btn-primary btn-block" id="save-title" style="margin-top:16px">保存</button>
+  </div></div>
+
+  <div id="invoice-available-amount" hidden></div><div id="applied-section" hidden></div><div id="applied-list" hidden></div><div id="titles-list" hidden></div><button id="add-title-btn" hidden></button>
+  <script src="shared-state.js"></script>
+  <script src="shared-nav.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const owner = { parkId: 'park-001', userId: 'U001' };
+      let selectedTransaction = null;
+      let editingTitleId = null;
+
+      function rechargeTransactions() {
+        return (parkState.state.transactions || [])
+          .filter(function (item) { return item.type === 'recharge' && item.status === 'success' && item.parkId === owner.parkId && item.userId === owner.userId; })
+          .sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); });
+      }
+      function activeTitles() {
+        return (parkState.state.invoiceTitles || []).filter(function (item) {
+          return item.parkId === owner.parkId && item.userId === owner.userId && !item.deletedAt;
+        });
+      }
+      function recordFor(transactionId) {
+        return (parkState.state.invoiceRecords || []).find(function (item) { return item.transactionId === transactionId; }) || null;
+      }
+      function invoiceStatus(transactionId) {
+        const record = recordFor(transactionId);
+        if (!record) return '未开票';
+        return record.status === 'issued' ? '已开票' : '开票中';
+      }
+      function money(value) { return '¥' + formatMoney(Number(value) || 0); }
+      function statusClass(status) { return status === '已开票' ? 'status-complete' : status === '开票中' ? 'status-processing' : 'status-uninvoiced'; }
+
+      function renderList() {
+        const transactions = rechargeTransactions();
+        const list = document.getElementById('apply-list'); list.replaceChildren();
+        if (!transactions.length) { list.innerHTML = '<div class="empty-state">暂无充值记录</div>'; return; }
+        transactions.forEach(function (transaction) {
+          const status = invoiceStatus(transaction.id);
+          const item = document.createElement('div'); item.className = 'invoice-record'; item.dataset.transactionId = transaction.id;
+          item.innerHTML = '<div class="record-head"><b>' + transaction.title + '</b><span class="record-amount">+' + money(transaction.amount) + '</span></div><div class="record-meta">' + (transaction.channel || '支付方式未记录') + ' · ' + transaction.time + '</div><div class="record-foot"><span class="record-status ' + statusClass(status) + '">' + status + '</span></div>';
+          if (status === '未开票') { const button = document.createElement('button'); button.className = 'btn btn-primary btn-sm'; button.textContent = '申请开票'; button.addEventListener('click', function (event) { event.stopPropagation(); openApplyModal(transaction); }); item.querySelector('.record-foot').appendChild(button); }
+          item.addEventListener('click', function () { location.href = 'user-recharge-detail.html?id=' + encodeURIComponent(transaction.id); });
+          list.appendChild(item);
+        });
+      }
+      function renderOrder(transaction) { document.getElementById('apply-order-card').innerHTML = '<div class="apply-order-main"><b>' + transaction.title + '</b><span>' + transaction.time + (transaction.channel ? ' · ' + transaction.channel : '') + '</span></div><div class="apply-order-amount">' + money(transaction.amount) + '</div>'; }
+      function renderTitle(titleId) { const title = activeTitles().find(function (item) { return item.id === titleId; }); const card = document.getElementById('apply-title-card'); if (!title) { card.innerHTML = '<div class="empty-state" style="padding:12px">暂无发票抬头</div>'; return; } const rows = [['税号', title.taxId], ['单位地址', title.address], ['电话', title.phone], ['开户行', title.bank], ['银行账户', title.bankAccount]]; card.innerHTML = '<div class="apply-title-head"><b>' + title.name + '</b>' + (title.isDefault ? '<span class="tag tag-success">默认</span>' : '') + '</div>' + rows.map(function (row) { return '<div class="apply-title-row"><label>' + row[0] + '</label><span>' + (row[1] || '未填写') + '</span></div>'; }).join(''); }
+      function fillTitleSelect() { const select = document.getElementById('title-select'); select.replaceChildren(); activeTitles().forEach(function (title) { const option = document.createElement('option'); option.value = title.id; option.textContent = title.name + (title.isDefault ? '（默认）' : ''); option.selected = title.isDefault; select.appendChild(option); }); renderTitle(select.value); }
+      function openApplyModal(transaction) { selectedTransaction = transaction; renderOrder(transaction); fillTitleSelect(); document.getElementById('apply-modal').classList.add('active'); }
+      function closeApplyModal() { document.getElementById('apply-modal').classList.remove('active'); selectedTransaction = null; }
+      function confirmApply() {
+        if (!selectedTransaction) return;
+        const titleId = document.getElementById('title-select').value;
+        if (!titleId) { alert('请先新增发票抬头'); return; }
+        const result = parkState.actions.applyInvoice({ transactionId: selectedTransaction.id, titleId: titleId, requestId: 'REQ-' + selectedTransaction.id });
+        if (!result.ok) { alert('申请失败：' + (result.code || '未知错误')); return; }
+        closeApplyModal();
+        renderList();
+      }
+      function openTitleModal(title) { editingTitleId = title ? title.id : null; document.getElementById('title-modal-title').textContent = title ? '编辑发票抬头' : '新增发票抬头'; ['name','tax','address','phone','bank','account'].forEach(function (field) { const key = field === 'tax' ? 'taxId' : field === 'account' ? 'bankAccount' : field; document.getElementById('title-' + field).value = title ? title[key] || '' : ''; }); document.getElementById('title-default').checked = title ? Boolean(title.isDefault) : false; document.getElementById('title-modal').classList.add('active'); }
+      function closeTitleModal() { document.getElementById('title-modal').classList.remove('active'); editingTitleId = null; }
+      function collectTitleInput() {
+        return {
+          parkId: owner.parkId, userId: owner.userId,
+          name: document.getElementById('title-name').value.trim(),
+          taxId: document.getElementById('title-tax').value.trim(),
+          address: document.getElementById('title-address').value.trim(),
+          phone: document.getElementById('title-phone').value.trim(),
+          bank: document.getElementById('title-bank').value.trim(),
+          bankAccount: document.getElementById('title-account').value.trim(),
+          isDefault: document.getElementById('title-default').checked
+        };
+      }
+      function saveTitle() {
+        const input = collectTitleInput();
+        const result = editingTitleId
+          ? parkState.actions.updateInvoiceTitle(editingTitleId, input, owner)
+          : parkState.actions.createInvoiceTitle(input);
+        if (!result.ok) { alert('保存失败：请完整填写名称、税号、单位地址、电话、开户行和银行账户'); return; }
+        closeTitleModal();
+        fillTitleSelect();
+      }
+      document.getElementById('apply-modal-close').addEventListener('click', closeApplyModal);
+      document.getElementById('confirm-apply').addEventListener('click', confirmApply);
+      document.getElementById('title-select').addEventListener('change', function () { renderTitle(this.value); });
+      document.getElementById('apply-add-entry').addEventListener('click', function () { openTitleModal(null); });
+      document.getElementById('title-modal-close').addEventListener('click', closeTitleModal);
+      document.getElementById('save-title').addEventListener('click', saveTitle);
+      document.getElementById('apply-modal').addEventListener('click', function (event) { if (event.target === this) closeApplyModal(); });
+      document.getElementById('title-modal').addEventListener('click', function (event) { if (event.target === this) closeTitleModal(); });
+      renderList();
+    })();
+  </script>
+</body>
+</html>

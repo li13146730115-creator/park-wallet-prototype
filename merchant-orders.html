@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>收款记录</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content{padding:0 var(--page-padding) 18px}.screen{display:none}.screen.active{display:block}.filters,.order-list,.detail-card{background:var(--card-bg);border-radius:var(--radius-card);box-shadow:var(--shadow-card)}.filters{padding:12px;margin-bottom:14px}.filter-chips{display:flex;gap:7px;overflow:auto;margin-bottom:10px}.filter-chips button{border:0;border-radius:999px;padding:8px 12px;white-space:nowrap;background:var(--page-bg);color:var(--muted)}.filter-chips button.active{background:var(--info-bg);color:var(--info);font-weight:700}.filter-row{display:flex;gap:8px;margin-bottom:10px}.filter-row select,.filter-row input{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius-small);background:#fff;font-size:13px;font-family:inherit}.filter-row input::placeholder{color:var(--muted-light)}.order-list{padding:1px 15px}.order-item{width:100%;display:flex;justify-content:space-between;gap:12px;padding:14px 0;border:0;border-bottom:1px solid var(--divider);background:transparent;text-align:left}.order-item:last-child{border-bottom:0}.order-main b,.order-main span,.order-amount b{display:block}.order-main span{margin-top:4px;color:var(--muted);font-size:12px}.order-amount{text-align:right}.order-amount .tag{margin-top:4px}.empty-orders{padding:32px 0;text-align:center;color:var(--muted)}.detail-card{padding:18px 16px}.detail-row{display:flex;justify-content:space-between;gap:18px;padding:12px 0;border-bottom:1px solid var(--divider)}.detail-row label{color:var(--muted)}.detail-row b{text-align:right}.amount{font-size:24px}.refund-action{margin-top:18px}.refund-action .hint{display:block;margin-top:8px;font-size:12px;color:var(--muted)}.refund-hint{margin-top:12px;padding:10px 12px;border-radius:var(--radius-small);text-align:center;color:var(--muted);background:var(--page-bg)}.refund-hint.done{color:var(--success);background:var(--success-bg)}.refund-hint.expired{color:var(--error);background:var(--error-bg)}dialog{width:min(320px,calc(100% - 36px));border:0;border-radius:var(--radius-card);padding:20px}dialog::backdrop{background:rgba(13,22,38,.55)}.date-grid{display:grid;gap:12px}.date-grid label{display:grid;gap:6px}.date-grid input{padding:10px;border:1px solid var(--border);border-radius:var(--radius-small)}
+  </style>
+</head>
+<body>
+  <div class="mobile-page"><div class="phone-shell"><div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div><div class="app-shell">
+    <div class="screen active" id="screen-list"><header class="topbar"><a href="merchant-home.html" class="back">‹</a><strong>收款记录</strong><span></span></header><main class="app-content">
+      <section class="filters">
+        <div id="status-filter" class="filter-chips"><button class="active" data-status="all">全部</button><button data-status="paid">已收款</button><button data-status="refunding">退款中</button><button data-status="refunded">已退款</button></div>
+        <div class="filter-row">
+          <input type="text" id="user-search" placeholder="用户姓名 / 手机号" maxlength="20">
+          <input type="number" id="amount-min" placeholder="最小金额">
+          <input type="number" id="amount-max" placeholder="最大金额">
+        </div>
+        <div class="filter-row"><select id="time-filter" aria-label="付款周期"><option value="today">今日</option><option value="7d" selected>近 7 天</option><option value="30d">近 30 天</option><option value="custom">自定义日期</option></select></div>
+      </section>
+      <section class="order-list" id="order-list"></section>
+    </main></div>
+    <div class="screen" id="screen-detail"><header class="topbar"><button class="topbar-icon back" id="back-detail" type="button">‹</button><strong>订单详情</strong><span></span></header><main class="app-content"><section class="detail-card" id="detail-card"></section></main></div>
+    <div class="home-bar"></div>
+  </div></div></div>
+  <dialog id="date-dialog"><form method="dialog"><h2>自定义日期</h2><div class="date-grid"><label>开始日期<input id="date-start" type="date"></label><label>结束日期<input id="date-end" type="date"></label></div><div class="modal-actions"><button value="cancel" class="btn btn-white">取消</button><button id="apply-date" value="default" class="btn btn-primary">应用</button></div></form></dialog>
+  <dialog id="refund-dialog"><form method="dialog"><h2>确认退款？</h2><p>订单实付金额将全部恢复至用户储值余额。</p><div class="modal-actions"><button value="cancel" class="btn btn-white">取消</button><button id="confirm-refund" value="default" class="btn btn-primary">确认退款</button></div></form></dialog>
+  <script src="shared-state.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    const MERCHANT_ID='M002',PARK_ID='park-001',TODAY=new Date(),orders=parkState.state.orders,user=parkState.state.user;
+    const filter={status:'all',range:'7d',start:'',end:'',keyword:'',amountMin:'',amountMax:''};let currentOrder=null;
+    const listScreen=document.getElementById('screen-list'),detailScreen=document.getElementById('screen-detail'),list=document.getElementById('order-list'),detail=document.getElementById('detail-card'),time=document.getElementById('time-filter'),dateDialog=document.getElementById('date-dialog'),refundDialog=document.getElementById('refund-dialog');
+    const userSearch=document.getElementById('user-search'),amountMin=document.getElementById('amount-min'),amountMax=document.getElementById('amount-max');
+    function parseDate(v){return new Date(String(v||'').replace(/-/g,'/'))}
+    function isWithinRefundWindow(order){return order.status==='paid'&&Array.isArray(order.batchAllocations)&&order.batchAllocations.length>0&&parseDate(order.refundDeadline)>=TODAY}
+    function statusInfo(order){if(order.status==='refunded')return ['已退款','tag-info'];if(order.status==='refunding')return ['退款中','tag-info'];if(order.status==='paid')return ['已收款','tag-success'];return ['支付失败','tag-muted']}
+    function statusMatches(order){if(filter.status==='all')return true;return order.status===filter.status}
+    function inRange(order){const d=parseDate(order.time);if(Number.isNaN(d.getTime()))return false;const todayStr=TODAY.getFullYear()+'-'+String(TODAY.getMonth()+1).padStart(2,'0')+'-'+String(TODAY.getDate()).padStart(2,'0');if(filter.range==='today')return String(order.time).slice(0,10)===todayStr;if(filter.range==='7d')return d>=new Date(TODAY.getTime()-7*86400000);if(filter.range==='30d')return d>=new Date(TODAY.getTime()-30*86400000);if(filter.range==='custom')return(!filter.start||d>=new Date(filter.start+'T00:00:00'))&&(!filter.end||d<=new Date(filter.end+'T23:59:59'));return true}
+    function matchesSearch(order){
+      if(filter.keyword){
+        const kw=filter.keyword.trim();
+        if(kw){
+          const hay=(user.name+' '+user.phone+' '+order.id).toLowerCase();
+          if(!hay.includes(kw.toLowerCase()))return false;
+        }
+      }
+      if(filter.amountMin!==''&&Number(order.amount)<Number(filter.amountMin))return false;
+      if(filter.amountMax!==''&&Number(order.amount)>Number(filter.amountMax))return false;
+      return true;
+    }
+    function rows(){return orders.filter(o=>o.parkId===PARK_ID&&o.merchantId===MERCHANT_ID&&statusMatches(o)&&inRange(o)&&matchesSearch(o)).sort((a,b)=>String(b.time).localeCompare(String(a.time)))}
+    function addText(parent,tag,text,className){const node=document.createElement(tag);if(className)node.className=className;node.textContent=text;parent.appendChild(node);return node}
+    function renderList(){list.replaceChildren();const data=rows();if(!data.length){addText(list,'div','当前条件下暂无收款记录','empty-orders');return}data.forEach(order=>{const info=statusInfo(order),button=document.createElement('button');button.type='button';button.className='order-item';button.dataset.orderId=order.id;const main=document.createElement('span');main.className='order-main';addText(main,'b','订单 '+order.id);addText(main,'span',order.time||'');const amount=document.createElement('span');amount.className='order-amount';addText(amount,'b','+ ¥'+formatMoney(order.amount));addText(amount,'span',info[0],'tag '+info[1]);button.append(main,amount);button.addEventListener('click',()=>showDetail(order));list.appendChild(button)})}
+    function addRow(label,value,className){const row=document.createElement('div');row.className='detail-row';addText(row,'label',label);addText(row,'b',value,className);detail.appendChild(row)}
+    function maskUserPhone(value){const text=String(value||'').trim();if(!text)return '未填写';if(text.includes('*'))return text;if(/^\d{11}$/.test(text))return text.slice(0,3)+'****'+text.slice(-4);return text.length<=2?'已隐藏':text.slice(0,2)+'****'+text.slice(-2)}
+    function renderDetail(){detail.replaceChildren();if(!currentOrder)return;const order=currentOrder,info=statusInfo(order);addRow('订单金额','¥'+formatMoney(order.amount),'amount');addRow('订单状态',info[0]);addRow('订单编号',order.id);addRow('收款时间',order.time||'');addRow('用户信息',user.name+'_'+maskUserPhone(user.phone));if(order.status==='refunded'){addText(detail,'div','已全额退回用户储值余额','refund-hint done')}else if(order.status==='refunding'){addText(detail,'div','退款审核中，请等待园区处理','refund-hint')}else if(isWithinRefundWindow(order)){const wrap=document.createElement('div');wrap.className='refund-action';const button=addText(wrap,'button','退款','btn btn-primary btn-block');button.type='button';button.addEventListener('click',()=>refundDialog.showModal());detail.appendChild(wrap)}else if(order.status==='paid'){const wrap=document.createElement('div');wrap.className='refund-action';const button=addText(wrap,'button','退款','btn btn-primary btn-block');button.type='button';button.disabled=true;addText(wrap,'span','已超过退款有效期，不可退款','hint');detail.appendChild(wrap);addText(detail,'div','已超过退款有效期，不可退款','refund-hint expired')}}
+    function showDetail(order){currentOrder=order;renderDetail();listScreen.classList.remove('active');detailScreen.classList.add('active')}
+    function showList(){currentOrder=null;detailScreen.classList.remove('active');listScreen.classList.add('active');renderList()}
+    document.querySelectorAll('#status-filter button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('#status-filter button').forEach(x=>x.classList.toggle('active',x===btn));filter.status=btn.dataset.status;renderList()}));
+    time.addEventListener('change',()=>{filter.range=time.value;if(time.value==='custom')dateDialog.showModal();else renderList()});
+    document.getElementById('apply-date').addEventListener('click',()=>{filter.start=document.getElementById('date-start').value;filter.end=document.getElementById('date-end').value;renderList()});
+    [userSearch,amountMin,amountMax].forEach(input=>input.addEventListener('input',()=>{filter.keyword=userSearch.value;filter.amountMin=amountMin.value;filter.amountMax=amountMax.value;renderList()}));
+    document.getElementById('back-detail').addEventListener('click',showList);document.getElementById('confirm-refund').addEventListener('click',()=>{if(!currentOrder)return;const result=parkState.actions.refundConsume(currentOrder.id);if(!result.ok){alert('退款失败：'+result.code);return}renderDetail();renderList()});
+    renderList();const id=new URLSearchParams(location.search).get('orderId');if(id){const order=orders.find(o=>o.id===id&&o.merchantId===MERCHANT_ID);if(order)showDetail(order)}
+  })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

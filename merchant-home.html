@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>商户收款 - 海智咖啡 HUB</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content{padding:0 var(--page-padding) 18px}.merchant-hero{margin:0 calc(-1 * var(--page-padding)) 14px;padding:18px 18px 22px;border-radius:0 0 var(--radius-card) var(--radius-card);color:#fff;background:var(--gradient-hero)}.merchant-hero small{opacity:.85}.merchant-hero b{display:block;margin:5px 0 3px;font-size:38px}.merchant-hero .btn{margin-top:16px}.collection-summary,.collection-panel{margin-bottom:14px;padding:15px;background:var(--card-bg);border-radius:var(--radius-card);box-shadow:var(--shadow-card)}.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.summary-grid span{display:block;color:var(--muted);font-size:12px}.summary-grid b{display:block;margin-top:4px;font-size:17px}.filter-row{display:flex;gap:8px;align-items:center;margin:12px 0}.filter-row select{flex:1;padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius-small);background:#fff}.filter-chips{display:flex;gap:7px;overflow:auto}.filter-chips button{border:0;border-radius:999px;padding:8px 12px;white-space:nowrap;background:var(--page-bg);color:var(--muted)}.filter-chips button.active{background:var(--info-bg);color:var(--info);font-weight:700}.order-item{width:100%;display:flex;justify-content:space-between;gap:12px;padding:14px 0;border:0;border-bottom:1px solid var(--divider);background:transparent;text-align:left}.order-item:last-child{border-bottom:0}.order-main b,.order-main span{display:block}.order-main span{margin-top:4px;color:var(--muted);font-size:12px}.order-amount{text-align:right}.order-amount b{display:block}.empty-state{padding:28px 8px;text-align:center;color:var(--muted)}dialog{width:min(340px,calc(100% - 36px));border:0;border-radius:var(--radius-card);padding:20px}dialog::backdrop{background:rgba(13,22,38,.5)}.date-grid{display:grid;gap:12px}.date-grid label{display:grid;gap:6px;font-size:13px}.date-grid input{padding:10px;border:1px solid var(--border);border-radius:var(--radius-small)}.topbar-link{color:var(--ink);font-size:13px;font-weight:600;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="mobile-page"><div class="phone-shell"><div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div><div class="app-shell">
+    <header class="topbar"><button class="topbar-icon back" type="button" onclick="history.back()" aria-label="返回">‹</button><strong>海智咖啡 HUB</strong><a href="merchant-settlements.html" class="topbar-link">分账管理</a></header>
+    <main class="app-content">
+      <section class="merchant-hero"><small>筛选范围收款</small><b>¥ <span id="hero-amount">0.00</span></b><span>共 <strong id="hero-count">0</strong> 笔</span><a href="merchant-scan.html" class="btn btn-white btn-block">扫码收款</a></section>
+      <section class="collection-summary"><div class="summary-grid"><div><span>收款金额</span><b>¥ <span id="summary-amount">0.00</span></b></div><div><span>收款笔数</span><b><span id="summary-count">0</span> 笔</b></div></div></section>
+      <section class="collection-panel">
+        <div class="section-title"><b>最近收款</b><a href="merchant-orders.html">全部记录</a></div>
+        <div id="collection-status-filter" class="filter-chips" aria-label="收款状态"><button class="active" data-status="all">全部</button><button data-status="paid">已收款</button><button data-status="refunded">已退款</button></div>
+        <div class="filter-row"><select id="collection-time-filter" aria-label="收款时间范围"><option value="today">今日</option><option value="7d" selected>近 7 天</option><option value="30d">近 30 天</option><option value="custom">自定义日期</option></select></div>
+        <div id="recent-orders"></div>
+      </section>
+    </main><div class="home-bar"></div>
+  </div></div></div>
+  <dialog id="date-dialog"><form method="dialog"><h2>自定义日期</h2><div class="date-grid"><label>开始日期<input id="date-start" type="date"></label><label>结束日期<input id="date-end" type="date"></label></div><div class="modal-actions"><button value="cancel" class="btn btn-white">取消</button><button id="apply-date" value="default" class="btn btn-primary">应用</button></div></form></dialog>
+  <script src="shared-state.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    const MERCHANT_ID='M002', TODAY=new Date();
+    const filter={status:'all',range:'7d',start:'',end:''};
+    const orders=parkState.state.orders;
+    const list=document.getElementById('recent-orders'),time=document.getElementById('collection-time-filter'),dialog=document.getElementById('date-dialog');
+    function parseDate(value){return new Date(String(value||'').replace(/-/g,'/'))}
+    function inRange(order){const d=parseDate(order.time);if(Number.isNaN(d.getTime()))return false;const todayStr=TODAY.getFullYear()+'-'+String(TODAY.getMonth()+1).padStart(2,'0')+'-'+String(TODAY.getDate()).padStart(2,'0');if(filter.range==='today')return order.time.slice(0,10)===todayStr;if(filter.range==='7d')return d>=new Date(TODAY.getTime()-7*86400000);if(filter.range==='30d')return d>=new Date(TODAY.getTime()-30*86400000);if(filter.range==='custom'){return (!filter.start||d>=new Date(filter.start+'T00:00:00'))&&(!filter.end||d<=new Date(filter.end+'T23:59:59'))}return true}
+    function statusMatches(order){if(filter.status==='all')return true;if(filter.status==='refunded')return order.status==='refunded';return order.status===filter.status}
+    function statusLabel(order){if(order.status==='refunded')return ['已退款','tag-info'];if(order.status==='refunding')return ['退款中','tag-info'];if(order.status==='paid')return ['已收款','tag-success'];return ['支付失败','tag-muted']}
+    function current(){return orders.filter(o=>o.merchantId===MERCHANT_ID&&statusMatches(o)&&inRange(o)).sort((a,b)=>String(b.time).localeCompare(String(a.time)))}
+    function render(){const rows=current(),total=rows.reduce((sum,o)=>sum+o.amount,0);['hero-amount','summary-amount'].forEach(id=>document.getElementById(id).textContent=formatMoney(total));['hero-count','summary-count'].forEach(id=>document.getElementById(id).textContent=rows.length);list.replaceChildren();if(!rows.length){const empty=document.createElement('div');empty.className='empty-state';empty.textContent='当前条件下暂无收款记录';list.appendChild(empty);return}rows.slice(0,5).forEach(order=>{const s=statusLabel(order),button=document.createElement('button');button.type='button';button.className='order-item';const main=document.createElement('span');main.className='order-main';const title=document.createElement('b');title.textContent='订单 '+order.id;const date=document.createElement('span');date.textContent=order.time;main.append(title,date);const amount=document.createElement('span');amount.className='order-amount';const money=document.createElement('b');money.textContent='+ ¥'+formatMoney(order.amount);const tag=document.createElement('span');tag.className='tag '+s[1];tag.textContent=s[0];amount.append(money,tag);button.append(main,amount);button.addEventListener('click',()=>location.href='merchant-orders.html?orderId='+encodeURIComponent(order.id));list.appendChild(button)})}
+    document.querySelectorAll('#collection-status-filter button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('#collection-status-filter button').forEach(x=>x.classList.toggle('active',x===btn));filter.status=btn.dataset.status;render()}));
+    time.addEventListener('change',()=>{filter.range=time.value;if(time.value==='custom')dialog.showModal();else render()});document.getElementById('apply-date').addEventListener('click',()=>{filter.start=document.getElementById('date-start').value;filter.end=document.getElementById('date-end').value;render()});render();
+  })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

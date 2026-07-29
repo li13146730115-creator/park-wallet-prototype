@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>注销账户</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content { padding: 0 var(--page-padding) 96px; }
+    .refund-view[hidden] { display: none; }
+    .view-intro { margin: 2px 2px 14px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .request-list { display: grid; gap: 12px; }
+    .request-card { cursor: pointer; }
+    .detail-back-btn { width: 100%; margin-top: 14px; }
+    .request-card, .refund-card { padding: 17px 16px; background: var(--card-bg); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+    .request-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); }
+    .request-head b { color: var(--ink); font-size: 14px; }
+    .request-head span { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: var(--info-bg); color: var(--info); font-size: 11px; font-weight: 650; }
+    .request-head span.status-completed { background: #eaf8ef; color: #16803c; }
+    .request-head span.status-rejected { background: #fff0f0; color: var(--error); }
+    .request-row, .refund-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--divider); font-size: 13px; }
+    .request-row:last-child, .refund-row:last-of-type { border-bottom: 0; }
+    .request-row label, .refund-row > span { flex: 0 0 auto; color: var(--muted); }
+    .request-row span { color: var(--ink); text-align: right; word-break: break-word; }
+    .request-row .request-amount { font-size: 17px; font-weight: 700; }
+    .refund-row { align-items: center; padding: 13px 0; }
+    .refund-row b { font-size: 20px; }
+    .reason-label { display: grid; gap: 7px; margin-top: 14px; color: var(--ink-light); font-size: 13px; }
+    .reason-label textarea { box-sizing: border-box; width: 100%; min-height: 88px; padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--radius-small); resize: none; color: var(--ink); font: inherit; line-height: 1.5; }
+    .rule-text { margin-top: 14px; padding: 12px; border-radius: var(--radius-small); background: var(--info-bg); color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .empty { padding: 56px 20px; border-radius: var(--radius-card); background: var(--card-bg); color: var(--muted); text-align: center; box-shadow: var(--shadow-card); }
+    .bottom-action { position: absolute; left: var(--page-padding); right: var(--page-padding); bottom: 30px; z-index: 10; }
+    .bottom-action .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .confirm-dialog { position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(13, 22, 38, .55); }
+    .confirm-dialog.active { display: flex; }
+    .confirm-dialog .dialog-box { width: 100%; max-width: 320px; padding: 24px 20px; border-radius: var(--radius-card); background: var(--card-bg); box-shadow: var(--shadow-float); }
+    .confirm-dialog h3 { margin: 0 0 12px; font-size: 17px; text-align: center; }
+    .confirm-dialog .notice { margin-bottom: 20px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    .confirm-dialog .notice li { margin: 0 0 6px 18px; list-style: disc; }
+    .confirm-dialog .actions { display: flex; flex-direction: column; gap: 10px; }
+    .confirm-dialog .actions .btn { width: 100%; height: 46px; font-size: 15px; font-weight: 700; }
+    .confirm-dialog .actions .btn-weak { border: 0; background: var(--page-bg); box-shadow: none; color: var(--muted); font-weight: 650; }
+  </style>
+</head>
+<body>
+  <div class="mobile-page"><div class="phone-shell">
+    <div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div>
+    <div class="app-shell">
+      <header class="topbar"><a href="user-wallet.html" class="back">‹</a><strong id="page-title">注销申请</strong><span></span></header>
+      <main class="app-content">
+        <section class="refund-view" id="refund-list-view">
+          <p class="view-intro">查看全部注销申请及当前处理进度。</p>
+          <div class="request-list" id="request-list"></div>
+        </section>
+        <section class="refund-view" id="refund-detail-view" hidden>
+          <div class="refund-card" id="detail-content"></div>
+          <button class="btn btn-white detail-back-btn" id="detail-back" type="button">返回列表</button>
+        </section>
+        <section class="refund-view" id="refund-apply-view" hidden>
+          <div class="refund-card">
+            <div class="refund-row"><span>本次注销金额</span><b>¥<span id="refund-amount">0.00</span></b></div>
+            <div class="refund-row"><span>申请后冻结金额</span><b>¥<span id="frozen-amount">0.00</span></b></div>
+            <div class="refund-row"><span>退款路径</span><b>原支付路径</b></div>
+            <label class="reason-label">注销原因<textarea id="refund-reason" maxlength="120" placeholder="请简要填写注销原因"></textarea></label>
+            <div class="rule-text">提交后，当前可用余额将被冻结，审核期间不可消费。审核通过后按原支付路径退款；申请后新增的充值不计入本次注销。</div>
+          </div>
+        </section>
+      </main>
+      <div class="bottom-action"><button class="btn btn-primary btn-block" id="primary-action" type="button">提交注销申请</button></div>
+      <div class="home-bar"></div>
+    </div>
+  </div></div>
+
+  <div class="confirm-dialog" id="confirm-dialog">
+    <div class="dialog-box">
+      <h3>确认注销？</h3>
+      <ul class="notice">
+        <li>注销申请有审核周期，审核期间余额将被冻结，无法消费。</li>
+        <li>注销通过后，余额将按原支付路径退回。</li>
+        <li>注销后，原赠送的优惠项信息将全部取消，不可恢复。</li>
+      </ul>
+      <div class="actions">
+        <button class="btn btn-primary" id="confirm-submit" type="button">仍要注销</button>
+        <button class="btn btn-weak" id="cancel-submit" type="button">再想想</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const owner = { parkId: 'park-001', userId: 'U001' };
+      const statusMap = {
+        pending_review: '待审核',
+        reviewing: '审核中',
+        rejected: '已驳回',
+        arrived: '已到账',
+        completed: '已完成',
+        manual_processing: '人工处理中'
+      };
+      const activeStatuses = ['pending_review', 'reviewing', 'arrived', 'manual_processing'];
+      const els = {
+        pageTitle: document.getElementById('page-title'),
+        listView: document.getElementById('refund-list-view'),
+        applyView: document.getElementById('refund-apply-view'),
+        detailView: document.getElementById('refund-detail-view'),
+        detailContent: document.getElementById('detail-content'),
+        detailBack: document.getElementById('detail-back'),
+        requestList: document.getElementById('request-list'),
+        amount: document.getElementById('refund-amount'),
+        frozen: document.getElementById('frozen-amount'),
+        reason: document.getElementById('refund-reason'),
+        primaryAction: document.getElementById('primary-action'),
+        dialog: document.getElementById('confirm-dialog'),
+        confirmSubmit: document.getElementById('confirm-submit'),
+        cancelSubmit: document.getElementById('cancel-submit')
+      };
+      let currentView = 'list';
+
+      function ownRequests() {
+        return (parkState.state.refundRequests || []).filter(function (request) {
+          return request.parkId === owner.parkId && request.userId === owner.userId;
+        });
+      }
+
+      function sortedRequests() {
+        return ownRequests().slice().sort(function (a, b) {
+          return String(b.createdAt).localeCompare(String(a.createdAt));
+        });
+      }
+
+      function addRequestRow(card, label, value, className) {
+        const row = document.createElement('div');
+        row.className = 'request-row';
+        const rowLabel = document.createElement('label');
+        rowLabel.textContent = label;
+        const rowValue = document.createElement('span');
+        rowValue.textContent = value;
+        if (className) rowValue.className = className;
+        row.append(rowLabel, rowValue);
+        card.appendChild(row);
+      }
+
+      function renderRequestList() {
+        const requests = sortedRequests();
+        els.requestList.replaceChildren();
+        if (!requests.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = '暂无注销申请';
+          els.requestList.appendChild(empty);
+          return;
+        }
+        requests.forEach(function (request) {
+          const card = document.createElement('article');
+          card.className = 'request-card';
+          const head = document.createElement('div');
+          head.className = 'request-head';
+          const id = document.createElement('b');
+          id.textContent = '注销编号：' + request.id;
+          const status = document.createElement('span');
+          status.textContent = statusMap[request.status] || request.status;
+          if (request.status === 'completed') status.classList.add('status-completed');
+          if (request.status === 'rejected') status.classList.add('status-rejected');
+          head.append(id, status);
+          card.appendChild(head);
+          addRequestRow(card, '申请时间', request.createdAt || '-');
+          addRequestRow(card, '注销金额', '¥' + formatMoney(request.amount), 'request-amount');
+          addRequestRow(card, '申请原因', request.notes || '用户申请注销');
+          addRequestRow(card, '退款路径', '原支付路径');
+          addRequestRow(card, '进度', statusMap[request.status] || request.status);
+          card.addEventListener('click', function () { showDetailView(request); });
+          els.requestList.appendChild(card);
+        });
+      }
+
+      function renderDetail(request) {
+        els.detailContent.replaceChildren();
+        const head = document.createElement('div');
+        head.className = 'request-head';
+        const id = document.createElement('b');
+        id.textContent = '注销编号：' + request.id;
+        const status = document.createElement('span');
+        status.textContent = statusMap[request.status] || request.status;
+        if (request.status === 'completed') status.classList.add('status-completed');
+        if (request.status === 'rejected') status.classList.add('status-rejected');
+        head.append(id, status);
+        els.detailContent.appendChild(head);
+        addRequestRow(els.detailContent, '申请时间', request.createdAt || '-');
+        addRequestRow(els.detailContent, '注销金额', '¥' + formatMoney(request.amount), 'request-amount');
+        addRequestRow(els.detailContent, '冻结金额', '¥' + formatMoney(request.frozenAmount));
+        addRequestRow(els.detailContent, '申请原因', request.notes || '用户申请注销');
+        addRequestRow(els.detailContent, '退款路径', '原支付路径');
+        addRequestRow(els.detailContent, '进度', statusMap[request.status] || request.status);
+      }
+
+      function showDetailView(request) {
+        currentView = 'detail';
+        els.listView.hidden = true;
+        els.applyView.hidden = true;
+        els.detailView.hidden = false;
+        els.pageTitle.textContent = '注销详情';
+        els.primaryAction.hidden = true;
+        renderDetail(request);
+      }
+
+      function hasActiveRequest() {
+        return ownRequests().some(function (request) {
+          return activeStatuses.includes(request.status);
+        });
+      }
+
+      function refreshApply() {
+        const available = parkState.state.wallet.available;
+        els.amount.textContent = formatMoney(available);
+        els.frozen.textContent = formatMoney(available);
+        els.primaryAction.disabled = hasActiveRequest() || (currentView === 'apply' && available <= 0);
+        els.primaryAction.textContent = '提交注销申请';
+      }
+
+      function showListView() {
+        currentView = 'list';
+        els.listView.hidden = false;
+        els.applyView.hidden = true;
+        els.detailView.hidden = true;
+        els.pageTitle.textContent = '注销申请';
+        els.primaryAction.hidden = false;
+        renderRequestList();
+        refreshApply();
+      }
+
+      function showApplyView() {
+        currentView = 'apply';
+        els.listView.hidden = true;
+        els.applyView.hidden = false;
+        els.detailView.hidden = true;
+        els.pageTitle.textContent = '提交注销申请';
+        els.primaryAction.hidden = false;
+        refreshApply();
+      }
+
+      function closeDialog() {
+        els.dialog.classList.remove('active');
+      }
+
+      function submitRequest() {
+        const result = parkState.actions.applyBalanceRefund(els.reason.value.trim() || '用户申请注销');
+        if (!result.ok) {
+          alert('申请失败：' + result.code);
+          refreshApply();
+          return;
+        }
+        els.reason.value = '';
+        renderRequestList();
+        showListView();
+      }
+
+      els.primaryAction.addEventListener('click', function () {
+        if (currentView === 'list') {
+          showApplyView();
+          return;
+        }
+        els.dialog.classList.add('active');
+      });
+      els.confirmSubmit.addEventListener('click', function () {
+        closeDialog();
+        submitRequest();
+      });
+      els.cancelSubmit.addEventListener('click', closeDialog);
+      els.detailBack.addEventListener('click', showListView);
+      els.dialog.addEventListener('click', function (event) {
+        if (event.target === els.dialog) closeDialog();
+      });
+
+      showListView();
+    })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

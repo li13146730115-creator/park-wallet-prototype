@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>分账管理 - 园区储值管理后台</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .metrics-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .metric-card { background: var(--card-bg); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-card); text-align: center; }
+    .metric-card label { display: block; color: var(--muted); font-size: 12px; }
+    .metric-card b { display: block; margin-top: 6px; font-size: 20px; color: var(--ink); }
+    .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filters input, .filters select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font: 14px var(--font-family); background: #fff; }
+    .btn { padding: 8px 16px; font-size: 14px; box-shadow: none; }
+    .btn-default { background: #fff; border: 1px solid var(--border); color: var(--ink); }
+    .tag-pending { background: var(--warning-bg); color: var(--warning); }
+    @media (max-width: 768px) { .metrics-bar { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 储值后台</div>
+      <nav>
+        <a href="admin-accounts.html">储值账户</a>
+        <a href="admin-orders.html">订单管理</a>
+        <a href="admin-refunds.html">退款审核</a>
+        <a href="admin-settlements.html" class="active">分账管理</a>
+        <a href="admin-merchants.html">商户配置</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header"><h1>分账管理</h1><div>管理员</div></div>
+
+      <div class="metrics-bar">
+        <div class="metric-card"><label>订单数量</label><b id="metric-count">0</b></div>
+        <div class="metric-card"><label>订单金额</label><b id="metric-amount">¥0.00</b></div>
+        <div class="metric-card"><label>已分账金额</label><b id="metric-settled">¥0.00</b></div>
+        <div class="metric-card"><label>待分账金额</label><b id="metric-pending">¥0.00</b></div>
+      </div>
+
+      <div class="admin-table">
+        <div class="filters">
+          <input type="text" id="filter-keyword" placeholder="订单编号 / 商户">
+          <select id="filter-status">
+            <option value="">全部状态</option>
+            <option value="settled">已分账</option>
+            <option value="pending">待分账</option>
+          </select>
+          <button class="btn btn-primary" id="query-button">查询</button>
+          <button class="btn btn-default" id="reset-button">重置</button>
+          <button class="btn btn-default" id="export-button">导出 CSV</button>
+        </div>
+        <table id="settlements-table">
+          <thead><tr><th>订单编号</th><th>商户</th><th>订单金额</th><th>分账比例</th><th>分账金额</th><th>分账状态</th><th>分账时间</th></tr></thead>
+          <tbody id="settlement-table"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script src="admin-utils.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const state = window.parkState.state;
+      const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
+      const merchants = (state.merchants || []).filter(function (item) { return item.parkId === parkId; });
+      const merchantConfig = state.merchantConfig || {};
+      const settlements = (state.pendingSettlements || []).filter(function (item) { return item.parkId === parkId; });
+      const orders = (state.orders || []).filter(function (item) { return item.parkId === parkId && item.status === 'paid'; });
+
+      const filter = { status: '', keyword: '' };
+      const els = {
+        keyword: document.getElementById('filter-keyword'),
+        status: document.getElementById('filter-status'),
+        table: document.getElementById('settlement-table')
+      };
+
+      function money(value) { return '¥' + formatMoney(Number(value) || 0); }
+      function merchantLabel(order) {
+        const found = merchants.find(function (m) { return m.id === order.merchantId; });
+        return found ? found.name : (order.merchant || '-');
+      }
+      function ratioOf(order) {
+        const config = merchantConfig[order.merchantId];
+        return config && typeof config.ratio === 'number' ? config.ratio : 1;
+      }
+      function successfulSettlement(orderId) {
+        return settlements.filter(function (item) {
+          return item.status === 'success' && Array.isArray(item.orderIds) && item.orderIds.includes(orderId);
+        }).sort(function (a, b) {
+          return String(b.paymentRecordedAt || '').localeCompare(String(a.paymentRecordedAt || ''));
+        })[0] || null;
+      }
+      function currentRows() {
+        return orders.map(function (order) {
+          const settlement = successfulSettlement(order.id);
+          const ratio = ratioOf(order);
+          return {
+            order: order,
+            ratio: ratio,
+            share: Number(order.amount) * ratio,
+            status: settlement ? 'settled' : 'pending',
+            settledAt: settlement ? (settlement.paymentRecordedAt || '时间未记录') : '-'
+          };
+        }).filter(function (row) {
+          if (filter.status && row.status !== filter.status) return false;
+          if (filter.keyword) {
+            const kw = filter.keyword.trim().toLowerCase();
+            if (kw) {
+              const hay = [row.order.id, merchantLabel(row.order)].join(' ').toLowerCase();
+              if (!hay.includes(kw)) return false;
+            }
+          }
+          return true;
+        }).sort(function (a, b) {
+          return String(b.order.time || '').localeCompare(String(a.order.time || ''));
+        });
+      }
+      function appendCell(row, value, className) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        if (className) cell.className = className;
+        row.appendChild(cell);
+        return cell;
+      }
+      function renderMetrics(rows) {
+        const settled = rows.filter(function (row) { return row.status === 'settled'; });
+        const pending = rows.filter(function (row) { return row.status === 'pending'; });
+        document.getElementById('metric-count').textContent = rows.length;
+        document.getElementById('metric-amount').textContent = money(rows.reduce(function (sum, row) { return sum + row.order.amount; }, 0));
+        document.getElementById('metric-settled').textContent = money(settled.reduce(function (sum, row) { return sum + row.share; }, 0));
+        document.getElementById('metric-pending').textContent = money(pending.reduce(function (sum, row) { return sum + row.share; }, 0));
+      }
+      function renderTable() {
+        const rows = currentRows();
+        renderMetrics(rows);
+        els.table.replaceChildren();
+        if (!rows.length) {
+          const empty = document.createElement('tr');
+          const cell = document.createElement('td');
+          cell.colSpan = 7;
+          cell.className = 'text-center text-muted';
+          cell.textContent = '当前条件下暂无分账记录';
+          empty.appendChild(cell);
+          els.table.appendChild(empty);
+          return;
+        }
+        rows.forEach(function (row) {
+          const tr = document.createElement('tr');
+          appendCell(tr, row.order.id);
+          appendCell(tr, merchantLabel(row.order));
+          appendCell(tr, money(row.order.amount));
+          appendCell(tr, Math.round(row.ratio * 100) + '%');
+          appendCell(tr, money(row.share));
+          appendCell(tr, row.status === 'settled' ? '已分账' : '待分账', 'tag ' + (row.status === 'settled' ? 'tag-success' : 'tag-pending'));
+          appendCell(tr, row.settledAt);
+          els.table.appendChild(tr);
+        });
+      }
+      document.getElementById('query-button').addEventListener('click', function () {
+        filter.keyword = els.keyword.value;
+        filter.status = els.status.value;
+        renderTable();
+      });
+      document.getElementById('reset-button').addEventListener('click', function () {
+        filter.keyword = ''; filter.status = '';
+        els.keyword.value = ''; els.status.value = '';
+        renderTable();
+      });
+      document.getElementById('export-button').addEventListener('click', function () { window.exportTableCsv('settlements-table', '分账管理'); });
+      els.keyword.addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('query-button').click(); });
+
+      renderTable();
+    })();
+  </script>
+</body>
+</html>

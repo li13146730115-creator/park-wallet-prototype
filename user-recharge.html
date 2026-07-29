@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>余额充值</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content { padding: 0 var(--page-padding) 18px; }
+    .wallet-hero { margin-bottom: 0; min-height: 180px; }
+    .hero-head { justify-content: center; }
+    .hero-head .back { position: absolute; left: -4px; color: #fff; cursor: pointer; text-decoration: none; }
+    .balance-more {
+      position: relative;
+      margin-left: auto;
+      align-self: center;
+    }
+    .balance-refund {
+      appearance: none;
+      padding: 0 0 1px;
+      border: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+      background: transparent;
+      color: #fff;
+      font: inherit;
+      font-size: 12px;
+      opacity: 0.88;
+      cursor: pointer;
+    }
+    .more-menu {
+      position: absolute;
+      top: calc(100% + 9px);
+      right: 0;
+      z-index: 20;
+      min-width: 92px;
+      padding: 6px;
+      border-radius: var(--radius-small);
+      background: var(--card-bg);
+      box-shadow: var(--shadow-float);
+    }
+    .more-menu[hidden] { display: none; }
+    .more-menu a {
+      display: block;
+      padding: 9px 12px;
+      border-radius: 9px;
+      color: var(--ink);
+      font-size: 13px;
+      text-align: center;
+      text-decoration: none;
+    }
+    .more-menu a:active { background: var(--page-bg); }
+    .section-title { margin-top: 18px; }
+    .tier-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .tier-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-small);
+      padding: 14px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .tier-card.active {
+      border-color: var(--info);
+      background: var(--info-bg);
+      box-shadow: 0 0 0 1px var(--info);
+    }
+    .tier-card b {
+      display: block;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .tier-card b small { font-size: 13px; font-weight: 650; margin-right: 1px; }
+    .custom-amount {
+      display: flex;
+      align-items: center;
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-small);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s ease;
+    }
+    .custom-amount:focus-within {
+      border-color: var(--info);
+      background: var(--info-bg);
+    }
+    .custom-amount .currency {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-right: 8px;
+    }
+    .custom-amount input {
+      flex: 1;
+      border: 0;
+      outline: none;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+      background: transparent;
+      font-family: inherit;
+    }
+    .custom-amount input::placeholder { color: var(--muted-light); font-size: 15px; font-weight: 400; }
+    .pay-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .pay-actions .total {
+      flex: 1;
+    }
+    .pay-actions .total label {
+      font-size: 11px;
+      color: var(--muted);
+      display: block;
+    }
+    .pay-actions .total b {
+      font-size: 22px;
+      color: var(--ink);
+    }
+    .pay-actions .total b small { font-size: 13px; margin-right: 1px; }
+    .pay-actions .btn {
+      flex: 0 0 140px;
+      height: 46px;
+      font-size: 15px;
+    }
+    .pay-actions .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="mobile-page">
+    <div class="phone-shell">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span class="status-icons">
+          <span class="signal"><i></i><i></i><i></i><i></i></span>
+          <span>5G</span>
+          <span class="battery"><b></b></span>
+        </span>
+      </div>
+      <div class="app-shell">
+        <header class="topbar">
+          <a href="user-wallet.html" class="back" style="left: -4px;">‹</a>
+          <strong>余额充值</strong>
+          <span></span>
+        </header>
+        <main class="app-content">
+          <div class="wallet-hero">
+            <div class="hero-head">
+              <a href="user-wallet.html" class="back">‹</a>
+              <span>当前余额</span>
+            </div>
+            <div class="balance" style="margin-top: 10px;">
+              <small>¥</small><b id="current-balance">0.00</b>
+              <div class="balance-more">
+                <button id="more-button" class="balance-refund" type="button" aria-expanded="false" aria-controls="more-menu">更多</button>
+                <div id="more-menu" class="more-menu" hidden>
+                  <a href="user-refund.html">注销</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-title">
+            <b>选择充值金额</b>
+            <span>1 元起充</span>
+          </div>
+
+          <div class="tier-grid" id="tier-grid">
+            <div class="tier-card" data-amount="100">
+              <b><small>¥</small>100</b>
+            </div>
+            <div class="tier-card active" data-amount="200">
+              <b><small>¥</small>200</b>
+            </div>
+            <div class="tier-card" data-amount="500">
+              <b><small>¥</small>500</b>
+            </div>
+            <div class="tier-card" data-amount="1000">
+              <b><small>¥</small>1000</b>
+            </div>
+          </div>
+
+          <div class="custom-amount" id="custom-box">
+            <span class="currency">¥</span>
+            <input type="number" id="custom-input" inputmode="decimal" min="1" max="99999" step="1" placeholder="输入自定义金额">
+          </div>
+
+          <div class="pay-actions">
+            <div class="total">
+              <label>充值金额</label>
+              <b><small>¥</small><span id="pay-amount">0.00</span></b>
+            </div>
+            <button class="btn btn-primary" id="pay-btn" disabled>去支付</button>
+          </div>
+        </main>
+        <nav class="bottom-nav">
+          <a href="user-home.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            首页
+          </a>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            服务
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 2l9 4.9V17L12 22l-9-4.9V7z"></path></svg>
+            领福利
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            客服
+          </div>
+          <div class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            我的
+          </div>
+        </nav>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const wallet = parkState.state.wallet;
+
+      const els = {
+        currentBalance: document.getElementById('current-balance'),
+        customInput: document.getElementById('custom-input'),
+        payAmount: document.getElementById('pay-amount'),
+        payBtn: document.getElementById('pay-btn'),
+        tierGrid: document.getElementById('tier-grid'),
+        moreButton: document.getElementById('more-button'),
+        moreMenu: document.getElementById('more-menu')
+      };
+
+      function refreshWalletDisplay() {
+        els.currentBalance.textContent = formatMoney(wallet.total);
+      }
+      refreshWalletDisplay();
+
+      let selectedAmount = 0;
+
+      function updateSummary() {
+        els.payAmount.textContent = formatMoney(selectedAmount);
+        els.payBtn.disabled = selectedAmount <= 0;
+        els.payBtn.textContent = selectedAmount > 0 ? '去支付' : '请选择金额';
+      }
+
+      function selectTier(card) {
+        document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        selectedAmount = parseFloat(card.dataset.amount) || 0;
+        els.customInput.value = '';
+        updateSummary();
+      }
+
+      document.querySelectorAll('.tier-card').forEach(card => {
+        card.addEventListener('click', () => selectTier(card));
+      });
+
+      els.customInput.addEventListener('input', function () {
+        document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('active'));
+        const raw = this.value.trim();
+        selectedAmount = raw ? Math.max(0, parseFloat(raw)) : 0;
+        updateSummary();
+      });
+
+      function formatAmount(amount) {
+        return amount.toFixed(2);
+      }
+
+      function closeMoreMenu() {
+        els.moreMenu.hidden = true;
+        els.moreButton.setAttribute('aria-expanded', 'false');
+      }
+
+      els.moreButton.addEventListener('click', function (event) {
+        event.stopPropagation();
+        const willOpen = els.moreMenu.hidden;
+        els.moreMenu.hidden = !willOpen;
+        els.moreButton.setAttribute('aria-expanded', String(willOpen));
+      });
+
+      els.moreMenu.addEventListener('click', function (event) {
+        event.stopPropagation();
+      });
+
+      els.moreMenu.querySelector('a').addEventListener('click', closeMoreMenu);
+      document.addEventListener('click', closeMoreMenu);
+
+      els.payBtn.addEventListener('click', function () {
+        if (selectedAmount <= 0) return;
+        const requestId = 'REQ' + Date.now();
+        const params = new URLSearchParams({
+          amount: formatAmount(selectedAmount),
+          requestId: requestId
+        });
+        window.location.href = 'aggregate-payment.html?' + params.toString();
+      });
+
+      selectTier(Array.from(document.querySelectorAll('.tier-card')).find(c => c.dataset.amount === '200'));
+    })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

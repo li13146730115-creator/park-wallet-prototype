@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>储值账户 - 园区储值管理后台</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .view-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+    .view-toggle button { padding: 8px 16px; border: 1px solid var(--border); border-radius: var(--radius-small); background: #fff; font-size: 14px; cursor: pointer; }
+    .view-toggle button.active { background: var(--info); color: #fff; border-color: var(--info); font-weight: 600; }
+    .admin-metrics { margin-bottom: 20px; }
+    .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filters input, .filters select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font: 14px var(--font-family); background: #fff; }
+    .btn { padding: 8px 16px; font-size: 14px; box-shadow: none; }
+    .btn-default { background: #fff; border: 1px solid var(--border); color: var(--ink); }
+    .amount-plus { color: var(--info); font-weight: 700; }
+    .amount-minus { color: var(--ink); font-weight: 700; }
+    .account-row { cursor: pointer; }
+    .account-row:hover td { background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 储值后台</div>
+      <nav>
+        <a href="admin-accounts.html" class="active">储值账户</a>
+        
+        <a href="admin-orders.html">订单管理</a>
+        <a href="admin-refunds.html">退款审核</a>
+        <a href="admin-settlements.html">分账管理</a><a href="admin-merchants.html">商户配置</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header"><h1>储值账户</h1><div>管理员</div></div>
+
+      <div class="view-toggle" id="view-toggle" aria-label="数据视图">
+        <button class="active" data-mode="month">本月统计</button>
+        <button data-mode="overall">整体统计</button>
+      </div>
+
+      <div class="admin-metrics">
+        <div class="admin-metric"><label>储值用户数</label><b id="metric-user-count">0</b></div>
+        <div class="admin-metric"><label>储值总额</label><b id="metric-total-recharge">¥0.00</b></div>
+        <div class="admin-metric"><label>可用余额</label><b id="metric-available">¥0.00</b></div>
+        <div class="admin-metric"><label>冻结金额</label><b id="metric-frozen">¥0.00</b></div>
+      </div>
+
+      <div class="admin-table">
+        <div class="filters">
+          <input type="text" id="filter-keyword" placeholder="用户姓名 / 手机号">
+          <button class="btn btn-primary" id="query-button">查询</button>
+          <button class="btn btn-default" id="reset-button">重置</button>
+          <button class="btn btn-default" id="export-button">导出 CSV</button>
+        </div>
+        <table id="accounts-table">
+          <thead><tr><th>用户信息</th><th>累计储值金额</th><th>累计消费金额</th><th>余额</th><th>最新交易时间</th><th>操作</th></tr></thead>
+          <tbody id="accounts-body"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+  <script src="shared-state.js"></script>
+  <script src="admin-utils.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const state = window.parkState.state;
+      const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
+
+      const accounts = (state.accounts || []).filter(function (item) { return item.parkId === parkId; });
+      const parkUsers = (state.users || []).filter(function (item) { return item.parkId === parkId; });
+      const transactions = (state.transactions || []).filter(function (item) { return item.parkId === parkId; });
+      const orders = (state.orders || []).filter(function (item) { return item.parkId === parkId; });
+
+      function money(value) { return '¥' + formatMoney(Number(value) || 0); }
+      function plus(a, b) { return Math.round((Number(a) + Number(b)) * 100) / 100; }
+      function userFor(account) { return parkUsers.find(function (u) { return u.id === account.userId; }) || { id: account.userId, name: '未知用户', phone: '' }; }
+      function transactionsFor(account) { return transactions.filter(function (t) { return t.userId === account.userId; }); }
+      function latestTime(account) {
+        const userTxns = transactionsFor(account);
+        const userOrders = orders.filter(function (o) { return o.userId === account.userId; });
+        const times = userTxns.map(function (t) { return t.time; }).concat(userOrders.map(function (o) { return o.time; })).filter(Boolean);
+        if (!times.length) return '-';
+        return times.sort().reverse()[0];
+      }
+      function totalRecharge(account) {
+        return transactionsFor(account).filter(function (t) { return t.type === 'recharge'; }).reduce(function (sum, t) { return plus(sum, Math.abs(t.amount)); }, 0);
+      }
+
+      let viewMode = 'month';
+      const els = {
+        metricUserCount: document.getElementById('metric-user-count'),
+        metricTotalRecharge: document.getElementById('metric-total-recharge'),
+        metricAvailable: document.getElementById('metric-available'),
+        metricFrozen: document.getElementById('metric-frozen'),
+        keyword: document.getElementById('filter-keyword'),
+        body: document.getElementById('accounts-body')
+      };
+
+      function renderMetrics() {
+        const stats = window.parkState.selectors.getAccountStatistics(parkId, viewMode === 'month' ? 'month' : 'all');
+        els.metricUserCount.textContent = stats.accountCount;
+        els.metricTotalRecharge.textContent = money(stats.totalStored);
+        els.metricAvailable.textContent = money(stats.available);
+        els.metricFrozen.textContent = money(stats.frozen);
+      }
+
+      function appendCell(row, value, className) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        if (className) cell.className = className;
+        row.appendChild(cell);
+        return cell;
+      }
+      function emptyRow(colspan, message) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = colspan;
+        cell.className = 'text-center text-muted';
+        cell.textContent = message;
+        row.appendChild(cell);
+        return row;
+      }
+      function renderList() {
+        const keyword = els.keyword.value.trim().toLowerCase();
+        const filtered = accounts.filter(function (account) {
+          const user = userFor(account);
+          const hay = (user.name + ' ' + user.phone).toLowerCase();
+          return !keyword || hay.includes(keyword);
+        });
+        els.body.replaceChildren();
+        if (!filtered.length) {
+          els.body.appendChild(emptyRow(6, '暂无储值用户'));
+          return;
+        }
+        filtered.forEach(function (account) {
+          const user = userFor(account);
+          const row = document.createElement('tr');
+          row.className = 'account-row';
+          appendCell(row, user.name + '\n' + user.phone);
+          appendCell(row, money(totalRecharge(account)), 'amount-plus');
+          appendCell(row, money(account.consumed), 'amount-minus');
+          appendCell(row, money(plus(account.available, account.frozen)));
+          appendCell(row, latestTime(account));
+          const opCell = document.createElement('td');
+          const link = document.createElement('a');
+          link.href = 'admin-account-detail.html?userId=' + encodeURIComponent(account.userId);
+          link.textContent = '详情';
+          link.className = 'link';
+          opCell.appendChild(link);
+          row.appendChild(opCell);
+          row.addEventListener('click', function (e) {
+            if (e.target.tagName !== 'A') location.href = 'admin-account-detail.html?userId=' + encodeURIComponent(account.userId);
+          });
+          els.body.appendChild(row);
+        });
+      }
+
+      document.querySelectorAll('#view-toggle button').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.querySelectorAll('#view-toggle button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+          viewMode = btn.dataset.mode;
+          renderMetrics();
+        });
+      });
+      document.getElementById('query-button').addEventListener('click', renderList);
+      document.getElementById('reset-button').addEventListener('click', function () { els.keyword.value = ''; renderList(); });
+      document.getElementById('export-button').addEventListener('click', function () { window.exportTableCsv('accounts-table', '储值账户台账'); });
+      els.keyword.addEventListener('keydown', function (event) { if (event.key === 'Enter') renderList(); });
+
+      renderMetrics();
+      renderList();
+    })();
+  </script>
+</body>
+</html>

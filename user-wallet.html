@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>我的钱包</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content { padding: 0 var(--page-padding) 18px; }
+    .wallet-hero { margin-bottom: 0; }
+    .asset-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+    }
+    .asset-recharge-link {
+      position: relative;
+      z-index: 3;
+      color: #fff;
+      font-size: 13px;
+      text-decoration: none;
+      padding-bottom: 5px;
+      white-space: nowrap;
+    }
+    .wallet-hero .hero-orb {
+      top: 14px;
+      right: 20px;
+      z-index: 1;
+      transform: scale(0.55);
+      transform-origin: top right;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+      position: relative;
+      z-index: 2;
+    }
+    .hero-actions .btn { flex: 1; height: 40px; font-size: 14px; text-decoration: none; }
+    .hero-actions .btn-ghost { border: 1px solid rgba(255,255,255,0.25); }
+    .quick-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .quick-stats .stat-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-small);
+      padding: 14px 10px;
+      text-align: center;
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .quick-stats .stat-card:active { transform: scale(0.98); }
+    .quick-stats .stat-card b {
+      display: block;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .quick-stats .stat-card span {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .detail-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: var(--shadow-card);
+    }
+    .detail-card .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--divider);
+      font-size: 13px;
+    }
+    .detail-card .row:last-child { border-bottom: 0; }
+    .detail-card .row label { color: var(--muted); }
+    .detail-card .row value { color: var(--ink); font-weight: 650; }
+    .detail-card .detail-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      text-decoration: none;
+    }
+    .wallet-menu {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .wallet-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 11px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-small);
+      background: #fff;
+      color: var(--ink);
+      text-decoration: none;
+      transition: transform 0.12s ease, background 0.12s ease;
+    }
+    .wallet-menu-item:active { transform: scale(0.98); }
+    .wallet-menu-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .wallet-menu-icon svg { width: 22px; height: 22px; }
+    .wallet-menu-invoices .wallet-menu-icon {
+      background: linear-gradient(145deg, #e8f5ff, #c2e6ff);
+      color: #176fe8;
+    }
+    .wallet-menu-recharges .wallet-menu-icon {
+      background: linear-gradient(145deg, #ebfaef, #bee9ce);
+      color: #1c9a60;
+    }
+    .wallet-menu-copy { flex: 1; min-width: 0; }
+    .wallet-menu-copy strong { display: block; font-size: 14px; font-weight: 650; }
+    .wallet-menu-copy span { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .wallet-menu-arrow { color: var(--muted-light); font-size: 22px; font-weight: 300; line-height: 1; }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 18px 3px 10px;
+    }
+    .section-header b { font-size: 16px; }
+    .section-header .link {
+      font-size: 12px;
+      color: var(--info);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .hero-refund {
+      margin-top: 12px;
+      position: relative;
+      z-index: 2;
+      text-align: right;
+    }
+    .hero-refund .refund-link {
+      color: #fff;
+      font-size: 12px;
+      opacity: 0.88;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.35);
+      padding-bottom: 1px;
+    }
+    .list-modal-body { max-height: 360px; overflow-y: auto; }
+    .tx-item { cursor: pointer; }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 22, 38, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 200;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      width: 100%;
+      max-width: 320px;
+      padding: 24px 20px;
+      box-shadow: var(--shadow-float);
+      text-align: left;
+    }
+    .modal-box .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .modal-box .modal-header b { font-size: 17px; }
+    .modal-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--page-bg);
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .modal-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--divider);
+      font-size: 14px;
+    }
+    .modal-row:last-child { border-bottom: 0; }
+    .modal-row label { color: var(--muted); }
+    .modal-row value { color: var(--ink); font-weight: 650; }
+    .filter-bar { margin: 18px 3px 10px; }
+    .date-inputs { display: grid; gap: 10px; margin: 10px 0 16px; }
+    .date-inputs label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+    .date-inputs input[type="date"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .more { cursor: pointer; }
+    .more-menu { position: absolute; top: 56px; right: var(--page-padding); z-index: 60; min-width: 96px; padding: 6px; background: var(--card-bg); border-radius: var(--radius-small); box-shadow: var(--shadow-float); }
+    .more-menu a { display: block; padding: 10px 14px; border-radius: 8px; color: var(--ink); font-size: 14px; text-decoration: none; }
+    .more-menu a:active { background: var(--page-bg); }
+  </style>
+</head>
+<body>
+  <div class="mobile-page">
+    <div class="phone-shell">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span class="status-icons">
+          <span class="signal"><i></i><i></i><i></i><i></i></span>
+          <span>5G</span>
+          <span class="battery"><b></b></span>
+        </span>
+      </div>
+      <div class="app-shell">
+        <header class="topbar">
+          <span class="back" style="visibility: hidden;">‹</span>
+          <strong>园区钱包</strong>
+          <span class="more" id="more-button">•••</span>
+        </header>
+        <div class="more-menu" id="more-menu" hidden><a href="user-refund.html">注销</a></div>
+        <main class="app-content">
+          <section class="wallet-hero">
+            <div class="hero-head">
+              <span>我的钱包</span>
+            </div>
+            <div class="asset-heading">
+              <div>
+                <div class="balance-label">总资产（元）</div>
+                <div class="balance"><small>¥</small><b id="total-balance">0.00</b></div>
+              </div>
+              <a class="asset-recharge-link" href="user-invoices.html">充值记录 <span aria-hidden="true">›</span></a>
+            </div>
+            <div class="balance-parts">
+              <span>可用<i id="available-balance">0.00</i></span>
+              <span>冻结<i id="frozen-balance">0.00</i></span>
+            </div>
+            <div class="hero-orb">
+              <div class="orb">
+                <div class="orb-core"></div>
+                <i class="orb-eye left"></i>
+                <i class="orb-eye right"></i>
+                <i class="orb-smile"></i>
+              </div>
+            </div>
+            <div class="hero-actions">
+              <a href="user-recharge.html" class="btn btn-white btn-block">立即充值</a>
+              <a href="user-payment-code.html" class="btn btn-ghost btn-block">付款码</a>
+            </div>
+          </section>
+
+          <div class="quick-stats">
+            <div class="stat-card" id="stat-recharge-card">
+              <b id="stat-recharge">0.00</b>
+              <span>累计充值</span>
+            </div>
+            <div class="stat-card" id="stat-consume-card">
+              <b id="stat-consume">0.00</b>
+              <span>累计消费</span>
+            </div>
+            <div class="stat-card" id="stat-count-card">
+              <b id="stat-count">0</b>
+              <span>交易笔数</span>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <b>最近交易</b>
+            <a href="#" class="link" id="all-transactions">全部交易 ›</a>
+          </div>
+
+          <div class="filter-bar" id="filter-bar">
+            <div class="filter-chips" id="type-chips">
+              <button class="chip active" data-type="all">全部</button>
+              <button class="chip" data-type="consume">消费</button>
+              <button class="chip" data-type="consume_refund">退款</button>
+            </div>
+            <select class="filter-select" id="time-filter">
+              <option value="today">今日</option>
+              <option value="7days" selected>近7天</option>
+              <option value="30days">近30天</option>
+              <option value="custom">自定义日期</option>
+            </select>
+          </div>
+
+          <div class="tx-list" id="recent-list"></div>
+        </main>
+        <nav class="bottom-nav">
+          <a href="user-home.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            首页
+          </a>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            服务
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 2l9 4.9V17L12 22l-9-4.9V7z"></path></svg>
+            领福利
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            客服
+          </div>
+          <div class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            我的
+          </div>
+        </nav>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="tx-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <b>交易详情</b>
+        <span class="modal-close" id="tx-modal-close">×</span>
+      </div>
+      <div id="tx-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="list-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <b id="list-modal-title">交易明细</b>
+        <span class="modal-close" id="list-modal-close">×</span>
+      </div>
+      <div id="list-modal-body" class="list-modal-body"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="custom-date-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <b>自定义日期</b>
+        <span class="modal-close" id="custom-date-close">×</span>
+      </div>
+      <div class="date-inputs">
+        <div>
+          <label>开始日期</label>
+          <input type="date" id="date-start">
+        </div>
+        <div>
+          <label>结束日期</label>
+          <input type="date" id="date-end">
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="date-apply">应用</button>
+    </div>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const wallet = parkState.state.wallet;
+      const allTransactions = parkState.state.transactions || [];
+      const transactions = allTransactions.filter(function (item) {
+        return item.type !== 'recharge';
+      });
+
+      document.getElementById('total-balance').textContent = formatMoney(wallet.total);
+      document.getElementById('available-balance').textContent = formatMoney(wallet.available);
+      document.getElementById('frozen-balance').textContent = formatMoney(wallet.frozen);
+
+      let totalRecharge = 0;
+      let totalConsume = 0;
+      allTransactions.forEach(tx => {
+        if (tx.type === 'recharge') totalRecharge += tx.amount;
+        if (tx.type === 'consume') totalConsume += Math.abs(tx.amount);
+      });
+
+      document.getElementById('stat-recharge').textContent = formatMoney(totalRecharge);
+      document.getElementById('stat-consume').textContent = formatMoney(totalConsume);
+      document.getElementById('stat-count').textContent = transactions.length;
+
+      const typeLabels = {
+        recharge: '充值',
+        consume: '消费',
+        consume_refund: '消费退款',
+        balance_refund: '余额退款'
+      };
+      const typeIcons = {
+        recharge: `<svg viewBox="0 0 24 24" fill="none" stroke="#2377f4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>`,
+        consume: `<svg viewBox="0 0 24 24" fill="none" stroke="#15284b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>`,
+        consume_refund: `<svg viewBox="0 0 24 24" fill="none" stroke="#2ec86e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"></path><path d="M3 5v7h7"></path></svg>`,
+        balance_refund: `<svg viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`
+      };
+      const typeBgClass = {
+        recharge: 'icon-blue',
+        consume: 'icon-purple',
+        consume_refund: 'icon-green',
+        balance_refund: 'icon-orange'
+      };
+
+      const sortedTransactions = transactions.slice().sort((a, b) => new Date(b.time) - new Date(a.time));
+      const filterState = { type: 'all', time: '7days', startDate: '', endDate: '' };
+
+      const recentList = document.getElementById('recent-list');
+      const txModal = document.getElementById('tx-modal');
+      const txModalBody = document.getElementById('tx-modal-body');
+      const txModalClose = document.getElementById('tx-modal-close');
+      const listModal = document.getElementById('list-modal');
+      const listModalBody = document.getElementById('list-modal-body');
+      const listModalClose = document.getElementById('list-modal-close');
+      const typeChips = document.querySelectorAll('.chip');
+      const timeFilter = document.getElementById('time-filter');
+      const customDateModal = document.getElementById('custom-date-modal');
+      const dateStart = document.getElementById('date-start');
+      const dateEnd = document.getElementById('date-end');
+      const dateApply = document.getElementById('date-apply');
+      const dateClose = document.getElementById('custom-date-close');
+
+      function parseTxDate(tx) {
+        return new Date(tx.time.replace(' ', 'T'));
+      }
+
+      function filterTransactions(txs) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return txs.filter(tx => {
+          const txDate = parseTxDate(tx);
+          txDate.setHours(0, 0, 0, 0);
+          if (filterState.type !== 'all' && tx.type !== filterState.type) return false;
+          if (filterState.time === 'today') return txDate.getTime() === today.getTime();
+          if (filterState.time === '7days') {
+            const start = new Date(today);
+            start.setDate(today.getDate() - 7);
+            return txDate >= start;
+          }
+          if (filterState.time === '30days') {
+            const start = new Date(today);
+            start.setDate(today.getDate() - 30);
+            return txDate >= start;
+          }
+          if (filterState.time === 'custom') {
+            if (!filterState.startDate || !filterState.endDate) return false;
+            const start = new Date(filterState.startDate);
+            const end = new Date(filterState.endDate);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
+            return txDate >= start && txDate <= end;
+          }
+          return true;
+        });
+      }
+
+      function renderTransaction(tx) {
+        const isIncome = tx.amount > 0;
+        const amountClass = isIncome ? 'amount-plus' : 'amount-minus';
+        const sign = isIncome ? '+' : '';
+        const bgClass = typeBgClass[tx.type] || 'icon-purple';
+
+        const item = document.createElement('div');
+        item.className = 'tx-item';
+        item.dataset.id = tx.id;
+        item.innerHTML = `
+          <div class="tx-icon ${bgClass}">${typeIcons[tx.type] || ''}</div>
+          <div class="tx-main">
+            <b>${tx.title}</b>
+            <span>${tx.time}</span>
+          </div>
+          <div class="tx-amount">
+            <b class="${amountClass}">${sign}${formatMoney(tx.amount)}</b>
+            <span>${typeLabels[tx.type]}</span>
+          </div>
+        `;
+        return item;
+      }
+
+      function renderRecent() {
+        const filtered = filterTransactions(sortedTransactions);
+        recentList.innerHTML = '';
+        if (filtered.length === 0) {
+          recentList.innerHTML = '<div class="empty-state">暂无交易记录</div>';
+        } else {
+          filtered.slice(0, 5).forEach(tx => {
+            const item = renderTransaction(tx);
+            item.addEventListener('click', () => showTxDetail(tx));
+            recentList.appendChild(item);
+          });
+        }
+      }
+
+      function showTxDetail(tx) {
+        const isIncome = tx.amount > 0;
+        const amountClass = isIncome ? 'amount-plus' : 'amount-minus';
+        const sign = isIncome ? '+' : '';
+        const typeLabel = typeLabels[tx.type] || '其他';
+        let extraRows = '';
+        if (tx.merchant) {
+          extraRows += `<div class="modal-row"><label>商户</label><value>${tx.merchant}</value></div>`;
+        }
+        if (tx.channel) {
+          extraRows += `<div class="modal-row"><label>支付渠道</label><value>${tx.channel}</value></div>`;
+        }
+        txModalBody.innerHTML = `
+          <div class="modal-row"><label>交易类型</label><value>${typeLabel}</value></div>
+          <div class="modal-row"><label>交易金额</label><value class="${amountClass}">${sign}${formatMoney(tx.amount)}</value></div>
+          <div class="modal-row"><label>交易时间</label><value>${tx.time}</value></div>
+          <div class="modal-row"><label>交易状态</label><value>${tx.status === 'success' ? '成功' : tx.status}</value></div>
+          ${extraRows}
+        `;
+        txModal.classList.add('active');
+      }
+
+      function hideTxModal() {
+        txModal.classList.remove('active');
+        if (returnToList) {
+          returnToList = false;
+          listModal.classList.add('active');
+        }
+      }
+
+      let returnToList = false;
+
+      function showListModal() {
+        listModalBody.innerHTML = '';
+        const filtered = filterTransactions(sortedTransactions);
+        if (filtered.length === 0) {
+          listModalBody.innerHTML = '<div class="empty-state" style="padding: 24px 0;">暂无记录</div>';
+        } else {
+          filtered.forEach(tx => {
+            const item = renderTransaction(tx);
+            item.addEventListener('click', () => {
+              returnToList = true;
+              hideListModal();
+              showTxDetail(tx);
+            });
+            listModalBody.appendChild(item);
+          });
+        }
+        listModal.classList.add('active');
+      }
+
+      function hideListModal() {
+        listModal.classList.remove('active');
+      }
+
+      function updateFilterUI() {
+        typeChips.forEach(chip => {
+          if (chip.dataset.type === filterState.type) chip.classList.add('active');
+          else chip.classList.remove('active');
+        });
+        timeFilter.value = filterState.time;
+      }
+
+      typeChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          filterState.type = chip.dataset.type;
+          updateFilterUI();
+          renderRecent();
+          if (listModal.classList.contains('active')) showListModal();
+        });
+      });
+
+      timeFilter.addEventListener('change', () => {
+        filterState.time = timeFilter.value;
+        if (filterState.time === 'custom') {
+          customDateModal.classList.add('active');
+        } else {
+          renderRecent();
+          if (listModal.classList.contains('active')) showListModal();
+        }
+      });
+
+      dateApply.addEventListener('click', () => {
+        filterState.startDate = dateStart.value;
+        filterState.endDate = dateEnd.value;
+        customDateModal.classList.remove('active');
+        renderRecent();
+        if (listModal.classList.contains('active')) showListModal();
+      });
+
+      dateClose.addEventListener('click', () => {
+        customDateModal.classList.remove('active');
+      });
+
+      customDateModal.addEventListener('click', e => {
+        if (e.target === customDateModal) customDateModal.classList.remove('active');
+      });
+
+      txModalClose.addEventListener('click', hideTxModal);
+      txModal.addEventListener('click', e => { if (e.target === txModal) hideTxModal(); });
+
+      listModalClose.addEventListener('click', hideListModal);
+      listModal.addEventListener('click', e => { if (e.target === listModal) hideListModal(); });
+
+      document.getElementById('stat-recharge-card').addEventListener('click', () => {
+        window.location.href = 'user-invoices.html';
+      });
+      document.getElementById('stat-consume-card').addEventListener('click', () => {
+        filterState.type = 'consume';
+        updateFilterUI();
+        showListModal();
+      });
+      document.getElementById('stat-count-card').addEventListener('click', () => {
+        filterState.type = 'all';
+        updateFilterUI();
+        showListModal();
+      });
+      document.getElementById('all-transactions').addEventListener('click', e => {
+        e.preventDefault();
+        showListModal();
+      });
+
+      const moreButton = document.getElementById('more-button');
+      const moreMenu = document.getElementById('more-menu');
+      moreButton.addEventListener('click', e => {
+        e.stopPropagation();
+        moreMenu.hidden = !moreMenu.hidden;
+      });
+      document.addEventListener('click', () => { moreMenu.hidden = true; });
+      moreMenu.addEventListener('click', e => { e.stopPropagation(); moreMenu.hidden = true; });
+
+      updateFilterUI();
+      renderRecent();
+    })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

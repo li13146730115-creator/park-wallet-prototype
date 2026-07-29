@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>原型测试运行器</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .test-page {
+      min-height: 100vh;
+      padding: 0 var(--page-padding) 80px;
+      background: var(--page-bg);
+    }
+
+    .test-header {
+      background: var(--gradient-hero);
+      margin: 0 calc(-1 * var(--page-padding)) 14px;
+      padding: 24px 20px;
+      color: #fff;
+      text-align: center;
+    }
+
+    .test-header h1 {
+      margin: 0 0 4px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .test-header p {
+      margin: 0;
+      font-size: 12px;
+      opacity: 0.88;
+    }
+
+    .summary {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .summary-item {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 12px 24px;
+      box-shadow: var(--shadow-card);
+      text-align: center;
+    }
+
+    .summary-item b {
+      display: block;
+      font-size: 22px;
+      color: var(--ink);
+    }
+
+    .summary-item span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .test-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .test-item {
+      background: var(--card-bg);
+      border-radius: var(--radius-small);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .test-item header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .test-title {
+      font-size: 14px;
+      font-weight: 650;
+      color: var(--ink);
+    }
+
+    .test-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .test-badge.pass {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .test-badge.fail {
+      background: var(--error-bg);
+      color: var(--error);
+    }
+
+    .test-message {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--error);
+      line-height: 1.5;
+      padding: 8px 10px;
+      background: var(--error-bg);
+      border-radius: 8px;
+      display: none;
+    }
+
+    .test-message.show { display: block; }
+
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .reset-btn {
+      width: 100%;
+      max-width: 320px;
+      height: 46px;
+      border: 0;
+      border-radius: var(--radius-button);
+      background: var(--error);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 9px 20px rgba(255, 77, 79, 0.22);
+    }
+
+    .reset-btn:active { transform: scale(0.98); }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 18px;
+      background: var(--card-bg);
+      border-radius: var(--radius-pill);
+      color: var(--info);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: var(--shadow-card);
+    }
+
+    @media (min-width: 768px) {
+      .test-page {
+        max-width: 680px;
+        margin: 0 auto;
+      }
+
+      .test-header {
+        border-radius: 0 0 var(--radius-card) var(--radius-card);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="test-page">
+    <div class="test-header">
+      <h1>原型测试运行器</h1>
+      <p>模拟状态操作断言 · 验证核心业务流程</p>
+    </div>
+
+    <div class="summary">
+      <div class="summary-item">
+        <b id="passCount">0</b>
+        <span>通过</span>
+      </div>
+      <div class="summary-item">
+        <b id="failCount">0</b>
+        <span>失败</span>
+      </div>
+    </div>
+
+    <div class="test-list" id="testList"></div>
+
+    <div class="actions">
+      <button class="reset-btn" type="button" onclick="resetState()">重置状态</button>
+      <a class="back-link" href="index.html">返回原型首页</a>
+    </div>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const tests = [];
+      const asyncTests = [];
+      let passCount = 0;
+      let failCount = 0;
+
+      function resetState() {
+        parkState.reset();
+        window.location.reload();
+      }
+      window.resetState = resetState;
+
+      function resetToDefaults() {
+        parkState.resetForTests();
+      }
+
+      function test(name, fn) {
+        tests.push({ name, fn });
+      }
+
+      function asyncTest(name, fn) {
+        asyncTests.push({ name, fn });
+      }
+
+      const ASYNC_TEST_TIMEOUT = 5000;
+
+      function snapshotStorage() {
+        return {
+          parkStateV2: localStorage.getItem('parkStateV2'),
+          parkV2AdminPark: localStorage.getItem('parkV2AdminPark')
+        };
+      }
+
+      function restoreStorage(snapshot) {
+        Object.keys(snapshot).forEach(function (key) {
+          if (snapshot[key] === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, snapshot[key]);
+        });
+      }
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message || '断言失败');
+      }
+
+      function assertEqual(actual, expected, message) {
+        if (actual !== expected) {
+          throw new Error((message || '断言失败') + '：期望 ' + expected + '，实际 ' + actual);
+        }
+      }
+
+      function assertApprox(actual, expected, message, epsilon = 0.001) {
+        if (Math.abs(actual - expected) > epsilon) {
+          throw new Error((message || '断言失败') + '：期望 ' + expected + '，实际 ' + actual);
+        }
+      }
+
+      function persistedState() {
+        return JSON.parse(localStorage.getItem('parkStateV2'));
+      }
+
+      function fetchSource(file) {
+        return fetch(file, { cache: 'no-store' }).then(function (response) {
+          if (!response.ok) throw new Error('缺少必需文件：' + file + '（HTTP ' + response.status + '）');
+          return response.text();
+        });
+      }
+
+      function assertContains(source, expected, message) {
+        assert(source.indexOf(expected) > -1, message + '：缺少 ' + JSON.stringify(expected));
+      }
+
+      function assertNotContains(source, forbidden, message) {
+        assert(source.indexOf(forbidden) === -1, message + '：仍包含 ' + JSON.stringify(forbidden));
+      }
+
+      function assertNoLegacyFields(value, path) {
+        const forbidden = [
+          ['prin', 'cipal'].join(''),
+          ['gi', 'ft'].join(''),
+          ['bo', 'nus'].join(''),
+          ['cam', 'paign'].join(''),
+          ['remaining', 'Gi', 'ft'].join(''),
+          ['remaining', 'Prin', 'cipal'].join('')
+        ];
+        if (!value || typeof value !== 'object') return;
+        Object.keys(value).forEach(key => {
+          assert(!forbidden.includes(key), '发现旧字段：' + path + '.' + key);
+          assertNoLegacyFields(value[key], path + '.' + key);
+        });
+      }
+
+      test('默认状态来自生产重置且拒绝非法充值', function () {
+        resetToDefaults();
+        assert(!parkState.actions.recharge(0, 'REQ-ZERO').ok, '零金额应失败');
+        assert(!parkState.actions.recharge(10, '').ok, '空 requestId 应失败');
+        assertEqual(JSON.stringify(parkState.state.wallet), JSON.stringify({ total: 238, available: 238, frozen: 0 }), 'wallet');
+        assertApprox(parkState.state.batches.reduce((sum, item) => sum + item.remaining, 0), 238, '默认批次余额');
+      });
+
+      test('默认用户使用完整手机号和所属企业', function () {
+        resetToDefaults();
+        assertEqual(parkState.state.user.phone, '13800131234', '默认用户手机号');
+        assertEqual(parkState.state.user.enterpriseName, '北京海开智慧园区科技有限公司', '默认用户所属企业');
+      });
+
+      test('旧存储用户缺少 enterpriseName 时仍可迁移加载', function () {
+        resetToDefaults();
+        const legacy = JSON.parse(JSON.stringify(parkState.state));
+        delete legacy.user.enterpriseName;
+        const storedName = legacy.user.name;
+        const storedPhone = legacy.user.phone;
+        localStorage.setItem('parkStateV2', JSON.stringify(legacy));
+        parkState.reloadForTests();
+        assertEqual(parkState.state.user.name, storedName, '旧用户姓名不应被默认状态替换');
+        assertEqual(parkState.state.user.phone, storedPhone, '旧用户手机号应保持原值');
+        assertEqual(parkState.state.user.enterpriseName, undefined, '旧用户不应补造所属企业');
+      });
+
+      test('充值成功、持久化且重复调用幂等', function () {
+        resetToDefaults();
+        const first = parkState.actions.recharge(200, 'REQ-RECHARGE-1');
+        const replay = parkState.actions.recharge(200, 'REQ-RECHARGE-1');
+        const sameAmount = parkState.actions.recharge(200, 'REQ-RECHARGE-2');
+        assert(first.ok && replay.ok && replay.idempotent && sameAmount.ok && !sameAmount.idempotent, '充值结果');
+        assertApprox(parkState.state.wallet.total, 638, 'wallet.total');
+        assertApprox(persistedState().wallet.total, 638, '持久化余额');
+        assertEqual(parkState.state.transactions.filter(item => item.requestId === 'REQ-RECHARGE-1').length, 1, '请求流水数量');
+        assertEqual(new Set(parkState.state.transactions.map(item => item.id)).size, parkState.state.transactions.length, '流水 ID 唯一');
+        assertEqual(new Set(parkState.state.batches.map(item => item.id)).size, parkState.state.batches.length, '批次 ID 唯一');
+
+        const stateReference = parkState.state;
+        const stateBeforeFailure = JSON.stringify(parkState.state);
+        const persistedBeforeFailure = localStorage.getItem('parkStateV2');
+        const storagePrototype = Object.getPrototypeOf(localStorage);
+        const originalSetItem = storagePrototype.setItem;
+        let failed;
+        storagePrototype.setItem = function () { throw new Error('模拟持久化失败'); };
+        try {
+          failed = parkState.actions.recharge(10, 'REQ-PERSIST-FAIL');
+        } finally {
+          storagePrototype.setItem = originalSetItem;
+        }
+        assert(!failed.ok && failed.code === 'PERSIST_FAILED', '持久化失败应返回统一失败');
+        assert(parkState.state === stateReference, '回滚必须保持 state 引用');
+        assertEqual(JSON.stringify(parkState.state), stateBeforeFailure, '持久化失败应回滚内存');
+        assertEqual(localStorage.getItem('parkStateV2'), persistedBeforeFailure, '持久化失败不得覆盖存储');
+      });
+
+      test('新测试订单消费成功、持久化且重复调用幂等', function () {
+        resetToDefaults();
+        const first = parkState.actions.consume('YQBLD-2026071509100001');
+        const second = parkState.actions.consume('YQBLD-2026071509100001');
+        assert(first.ok && second.ok && second.idempotent, '消费结果');
+        assertApprox(parkState.state.wallet.total, 226, 'wallet.total');
+        assertEqual(persistedState().orders.find(item => item.id === 'YQBLD-2026071509100001').status, 'paid', '持久化订单状态');
+        assertEqual(parkState.state.transactions.filter(item => item.orderId === 'YQBLD-2026071509100001' && item.type === 'consume').length, 1, '消费流水数量');
+        assertEqual(parkState.state.orders.find(item => item.id === 'YQBLD-2026071509100001').batchAllocations.length, 1, '消费批次分配');
+        assertApprox(parkState.state.batches[0].remaining, 88, '先进先出扣减');
+        assertApprox(parkState.state.batches.reduce((sum, item) => sum + item.remaining, 0), 226, '批次与钱包一致');
+        resetToDefaults();
+        parkState.state.orders.find(item => item.id === 'YQBLD-2026071509100001').amount = 9999;
+        const snapshot = JSON.stringify(parkState.state);
+        assert(!parkState.actions.consume('YQBLD-2026071509100001').ok, '余额不足应失败');
+        assertEqual(JSON.stringify(parkState.state), snapshot, '余额不足不得部分扣减');
+      });
+
+      test('消费退款恢复余额且重复调用幂等', function () {
+        resetToDefaults();
+        parkState.actions.consume('YQBLD-2026071509100001');
+        const first = parkState.actions.refundConsume('YQBLD-2026071509100001');
+        const second = parkState.actions.refundConsume('YQBLD-2026071509100001');
+        assert(first.ok && second.ok && second.idempotent, '消费退款结果');
+        assertApprox(parkState.state.wallet.total, 238, 'wallet.total');
+        assertEqual(parkState.state.transactions.filter(item => item.orderId === 'YQBLD-2026071509100001' && item.type === 'consume_refund').length, 1, '退款流水数量');
+        assertApprox(parkState.state.batches[0].remaining, 100, '退款恢复原批次');
+        assertEqual(new Set(parkState.state.transactions.map(item => item.id)).size, parkState.state.transactions.length, '退款流水 ID 唯一');
+      });
+
+      test('唯一余额退款申请冻结全部可用余额', function () {
+        resetToDefaults();
+        const first = parkState.actions.applyBalanceRefund('测试退款-唯一');
+        const second = parkState.actions.applyBalanceRefund('测试退款-唯一');
+        assert(first.ok && second.ok && second.idempotent, '申请结果');
+        assertApprox(parkState.state.wallet.available, 0, 'wallet.available');
+        assertApprox(parkState.state.wallet.frozen, 238, 'wallet.frozen');
+        assertEqual(parkState.state.refundRequests.length, 1, '退款申请数量');
+        assertApprox(persistedState().wallet.frozen, 238, '持久化冻结金额');
+        assertApprox(first.data.batchAllocations.reduce((sum, item) => sum + item.amount, 0), 238, '冻结批次快照');
+        assert(parkState.actions.rejectParkRefund(first.data.id).ok, '初审驳回');
+        assertApprox(parkState.state.wallet.available, 238, '驳回恢复可用余额');
+        assertApprox(parkState.state.batches.reduce((sum, item) => sum + item.remaining, 0), 238, '驳回不改变批次');
+      });
+
+      test('余额退款审批只退申请快照并保留后续充值', function () {
+        resetToDefaults();
+        const applied = parkState.actions.applyBalanceRefund('测试退款-审批');
+        const id = applied.data.id;
+        assert(parkState.actions.approveParkRefund(id).ok, '园区审批');
+        assert(parkState.actions.approveParkRefund(id).idempotent, '重复审批应幂等');
+        assert(parkState.actions.recharge(50, 'REQ-AFTER-REFUND').ok, '审批期间充值');
+        const first = parkState.actions.completeBalanceRefund(id);
+        const second = parkState.actions.completeBalanceRefund(id);
+        assert(first.ok && second.ok && second.idempotent, '物业复审结果');
+        assertApprox(parkState.state.wallet.total, 50, 'wallet.total');
+        assertApprox(parkState.state.wallet.available, 50, 'wallet.available');
+        assertApprox(parkState.state.wallet.frozen, 0, 'wallet.frozen');
+        assertEqual(parkState.state.transactions.filter(item => item.refundId === id && item.type === 'balance_refund').length, 1, '余额退款流水数量');
+        assertApprox(parkState.state.batches.reduce((sum, item) => sum + item.remaining, 0), 50, '仅保留新充值批次');
+        assertApprox(persistedState().wallet.total, 50, '持久化保留新充值');
+      });
+
+      test('损坏状态拒绝存储并在初始化时回退默认', function () {
+        resetToDefaults();
+        const before = JSON.stringify(parkState.state);
+        const result = parkState.actions.consume('NOT-FOUND');
+        assert(!result.ok, '不存在订单应失败');
+        assertEqual(JSON.stringify(parkState.state), before, '失败动作不得改状态');
+        parkState.state.wallet.total = -1;
+        assert(!parkState.save(), '负数钱包不得写入存储');
+        assertEqual(persistedState().wallet.total, 238, '拒绝覆盖合法存储');
+        resetToDefaults();
+        parkState.state.unexpected = true;
+        assert(!parkState.save(), '未知顶层键不得写入存储');
+        resetToDefaults();
+        parkState.state.user.role = 'admin';
+        assert(!parkState.save(), 'user 未定义字段不得写入存储');
+        resetToDefaults();
+        parkState.state.transactions[0].title = '<img src=x>';
+        assert(!parkState.save(), '含尖括号的可渲染字符串不得写入存储');
+        resetToDefaults();
+        const damaged = JSON.parse(before);
+        damaged.wallet.total = 999;
+        localStorage.setItem('parkStateV2', JSON.stringify(damaged));
+        parkState.reloadForTests();
+        assertApprox(parkState.state.wallet.total, 238, '损坏状态回退默认');
+        assertNoLegacyFields(parkState.state, 'state');
+        const serialized = JSON.stringify(parkState.state);
+        const forbiddenTerms = [
+          ['prin', 'cipal'].join(''),
+          ['gi', 'ft'].join(''),
+          ['bo', 'nus'].join(''),
+          ['cam', 'paign'].join(''),
+          ['remaining', 'Gi', 'ft'].join(''),
+          ['remaining', 'Prin', 'cipal'].join(''),
+          ['gi', 'ft', '_cl', 'ear'].join('')
+        ];
+        forbiddenTerms.forEach(term => assert(!serialized.includes(term), '状态中包含历史字段或类型：' + term));
+      });
+
+      test('严格拒绝核对与结算状态字段不匹配', function () {
+        function assertSaveRejected(mutator, message) {
+          resetToDefaults();
+          const persistedBefore = localStorage.getItem('parkStateV2');
+          mutator();
+          assert(!parkState.save(), message);
+          assertEqual(localStorage.getItem('parkStateV2'), persistedBefore, message + '不得覆盖合法存储');
+        }
+
+        assertSaveRejected(function () {
+          const row = parkState.state.reconciliationRows[0];
+          row.checked = true;
+          row.checkedAt = null;
+        }, 'checked=true 时 checkedAt=null 应拒绝');
+
+        assertSaveRejected(function () {
+          const settlement = parkState.state.pendingSettlements[0];
+          settlement.status = 'success';
+        }, 'success 无付款凭证和时间应拒绝');
+
+        assertSaveRejected(function () {
+          const settlement = parkState.state.pendingSettlements[0];
+          settlement.status = 'failed';
+          settlement.paymentRecordedAt = '2026-07-16 12:00';
+        }, 'failed 无失败原因应拒绝');
+
+        ['pending', 'processing'].forEach(function (status) {
+          assertSaveRejected(function () {
+            const settlement = parkState.state.pendingSettlements[0];
+            settlement.status = status;
+            settlement.paymentReference = 'PAY-INVALID';
+            settlement.paymentRecordedAt = '2026-07-16 12:00';
+          }, status + ' 携带结果字段应拒绝');
+        });
+      });
+
+      test('扫码创建待确认订单并持久化', function () {
+        resetToDefaults();
+        const beforeOrderCount = parkState.state.orders.length;
+        const result = parkState.actions.createPendingOrder('测试商户', 'M999', 36.50);
+        assert(result.ok, '创建订单应成功：' + (result.code || 'unknown'));
+        const order = result.data;
+        assert(order, '返回订单对象');
+        assert(order.status === 'pending_confirm', 'status');
+        assert(order.merchant === '测试商户', 'merchant');
+        assert(order.merchantId === 'M999', 'merchantId');
+        assertApprox(order.amount, 36.50, 'amount');
+        assert(order.id && order.id.startsWith('O'), 'id');
+        assert(order.time, 'time');
+        assert(order.refundDeadline, 'refundDeadline');
+        assertEqual(Object.keys(order).filter(k => k === ['prin', 'cipal'].join('') || k === ['gi', 'ft'].join('')).length, 0, '订单不含旧余额字段');
+        assertEqual(parkState.state.orders.length, beforeOrderCount + 1, 'orders 增加');
+        assert(persistedState().orders.find(item => item.id === order.id), '持久化');
+      });
+
+      test('createPendingOrder 拒绝非法金额并允许重复创建', function () {
+        resetToDefaults();
+        const invalid = parkState.actions.createPendingOrder('测试商户', 'M999', 0);
+        assert(!invalid.ok, '0 金额应失败');
+        const first = parkState.actions.createPendingOrder('测试商户', 'M999', 10);
+        const second = parkState.actions.createPendingOrder('测试商户', 'M999', 10);
+        assert(first.ok && second.ok && !second.idempotent, '相同金额允许重复创建且非幂等');
+        assert(first.data.id !== second.data.id, '重复创建应生成不同 id');
+        assert(new Set(parkState.state.orders.map(item => item.id)).size === parkState.state.orders.length, 'id 唯一');
+      });
+
+      test('确认消费流程：创建 -> 扣款成功 -> 持久化', function () {
+        resetToDefaults();
+        const order = parkState.actions.createPendingOrder('海智咖啡 HUB', 'M002', 18.00).data;
+        const beforeTotal = parkState.state.wallet.total;
+        const consumeResult = parkState.actions.consume(order.id);
+        assert(consumeResult.ok, 'consume 应成功：' + (consumeResult.code || 'unknown'));
+        assertApprox(parkState.state.wallet.total, beforeTotal - 18.00, '扣款后 total');
+        assertEqual(parkState.state.orders.find(item => item.id === order.id).status, 'paid', 'paid');
+        assertEqual(parkState.state.transactions.filter(item => item.orderId === order.id && item.type === 'consume').length, 1, '消费流水');
+        assert(persistedState().orders.find(item => item.id === order.id).status === 'paid', '持久化 paid');
+      });
+
+      test('拒绝或超时关闭后 consume 失败', function () {
+        resetToDefaults();
+        const orderA = parkState.actions.createPendingOrder('商户A', 'M001', 10).data;
+        orderA.status = 'closed';
+        const orderB = parkState.actions.createPendingOrder('商户B', 'M002', 10).data;
+        orderB.status = 'closed';
+        assert(!parkState.actions.consume(orderA.id).ok, 'closed 订单应不可 consume');
+        assert(!parkState.actions.consume(orderB.id).ok, 'closed 订单应不可 consume');
+        assertEqual(parkState.state.orders.find(item => item.id === orderA.id).status, 'closed', '状态不变');
+      });
+
+      test('余额不足时创建订单成功但 consume 失败', function () {
+        resetToDefaults();
+        const order = parkState.actions.createPendingOrder('大额商户', 'M999', 999999).data;
+        const result = parkState.actions.consume(order.id);
+        assert(!result.ok && result.code === 'INSUFFICIENT_BALANCE', '余额不足');
+        assertEqual(parkState.state.orders.find(item => item.id === order.id).status, 'pending_confirm', '仍为 pending_confirm');
+        assertEqual(parkState.state.transactions.filter(item => item.orderId === order.id).length, 0, '无流水');
+      });
+
+      test('订单状态流转后扫描无旧余额拆分字段', function () {
+        resetToDefaults();
+        const order = parkState.actions.createPendingOrder('拆分扫描', 'M998', 20).data;
+        parkState.actions.consume(order.id);
+        assertNoLegacyFields(parkState.state, 'state');
+        const serialized = JSON.stringify(parkState.state);
+        const bad = [
+          ['prin', 'cipal'].join(''),
+          ['gi', 'ft'].join(''),
+          ['remaining', 'Gi', 'ft'].join(''),
+          ['remaining', 'Prin', 'cipal'].join('')
+        ];
+        bad.forEach(term => {
+          assert(!serialized.includes(term), '序列化中不得含旧余额字段');
+        });
+      });
+
+      test('syncSettlements 同步未分配 paid 订单且重复调用幂等', function () {
+        resetToDefaults();
+        assertEqual(parkState.state.pendingSettlements[0].orderIds[0], 'YQST-2026071412360001', '默认结算关联订单');
+        const first = parkState.actions.syncSettlements();
+        assert(first.ok && first.code === 'SETTLEMENTS_SYNCED' && !first.idempotent, '首次同步成功');
+        const settlement = parkState.state.pendingSettlements.find(item => item.merchantId === 'M002');
+        assert(settlement, '应创建 M002 结算单');
+        assertApprox(settlement.ratio, 0.80, 'ratio');
+        assertApprox(settlement.total, 18, 'total');
+        assertApprox(settlement.merchantShare, 14.40, 'merchantShare');
+        assertApprox(settlement.parkShare, 3.60, 'parkShare');
+        const allOrderIds = parkState.state.pendingSettlements.flatMap(item => item.orderIds);
+        assertEqual(new Set(allOrderIds).size, allOrderIds.length, '结算订单全局唯一');
+        const count = parkState.state.pendingSettlements.length;
+        const second = parkState.actions.syncSettlements();
+        assert(second.ok && second.code === 'SETTLEMENTS_ALREADY_SYNCED' && second.idempotent, '重复同步幂等');
+        assertEqual(parkState.state.pendingSettlements.length, count, '重复同步数量不变');
+        assertEqual(persistedState().pendingSettlements.length, count, '同步结果持久化');
+      });
+
+      test('syncSettlements 缺商户配置时整体失败且不部分新增', function () {
+        resetToDefaults();
+        parkState.state.orders.push({ id: 'O9998', merchant: '已配置商户', merchantId: 'M002', amount: 5, time: '2026-07-16 11:00', status: 'paid', refundDeadline: '2026-07-17 11:00' });
+        parkState.state.orders.push({ id: 'O9999', merchant: '未知商户', merchantId: 'M999', amount: 6, time: '2026-07-16 11:00', status: 'paid', refundDeadline: '2026-07-17 11:00' });
+        const before = JSON.stringify(parkState.state.pendingSettlements);
+        const result = parkState.actions.syncSettlements();
+        assert(!result.ok && result.code === 'MERCHANT_CONFIG_NOT_FOUND', '应返回配置缺失');
+        assertEqual(JSON.stringify(parkState.state.pendingSettlements), before, '不得部分新增');
+      });
+
+      test('recordSettlementPaymentResult 校验成功凭证并支持幂等与冲突保护', function () {
+        resetToDefaults();
+        const empty = parkState.actions.recordSettlementPaymentResult('S3001', 'success', '   ', null);
+        assert(!empty.ok && empty.code === 'PAYMENT_REFERENCE_REQUIRED', '成功必须有凭证');
+        const first = parkState.actions.recordSettlementPaymentResult('S3001', 'success', ' PAY-3001 ', null);
+        assert(first.ok && !first.idempotent, '成功结果应写入');
+        const settlement = parkState.state.pendingSettlements.find(item => item.id === 'S3001');
+        assertEqual(settlement.status, 'success', 'status');
+        assertEqual(settlement.paymentReference, 'PAY-3001', '凭证规范化');
+        assert(settlement.paymentRecordedAt, '记录时间');
+        assertEqual(settlement.failReason, null, '成功时失败原因为空');
+        const recordedAt = settlement.paymentRecordedAt;
+        assertEqual(persistedState().pendingSettlements[0].paymentReference, 'PAY-3001', '结果持久化');
+        const replay = parkState.actions.recordSettlementPaymentResult('S3001', 'success', 'PAY-3001', null);
+        assert(replay.ok && replay.idempotent, '同参重放幂等');
+        assertEqual(settlement.paymentRecordedAt, recordedAt, '幂等保留时间');
+        const conflict = parkState.actions.recordSettlementPaymentResult('S3001', 'failed', null, '渠道失败');
+        assert(!conflict.ok && conflict.code === 'SETTLEMENT_RESULT_CONFLICT', '冲突结果被拒绝');
+        assertEqual(settlement.status, 'success', '冲突不覆盖状态');
+        assertEqual(settlement.paymentReference, 'PAY-3001', '冲突不覆盖凭证');
+      });
+
+      test('recordSettlementPaymentResult 失败结果必须有原因', function () {
+        resetToDefaults();
+        const empty = parkState.actions.recordSettlementPaymentResult('S3001', 'failed', null, ' ');
+        assert(!empty.ok && empty.code === 'FAIL_REASON_REQUIRED', '失败必须有原因');
+        const first = parkState.actions.recordSettlementPaymentResult('S3001', 'failed', null, ' 银行账户异常 ');
+        assert(first.ok, '合法失败结果写入');
+        const settlement = parkState.state.pendingSettlements[0];
+        assertEqual(settlement.status, 'failed', 'status');
+        assertEqual(settlement.paymentReference, null, '失败无付款凭证');
+        assertEqual(settlement.failReason, '银行账户异常', '失败原因规范化');
+        assert(settlement.paymentRecordedAt, '记录时间');
+      });
+
+      test('markReconciliationChecked 持久化核对且重复调用幂等', function () {
+        resetToDefaults();
+        const missing = parkState.actions.markReconciliationChecked('NOT-FOUND');
+        assert(!missing.ok && missing.code === 'RECONCILIATION_NOT_FOUND', '不存在记录应失败');
+        const first = parkState.actions.markReconciliationChecked('T1001');
+        assert(first.ok && !first.idempotent, '首次核对成功');
+        const row = parkState.state.reconciliationRows.find(item => item.id === 'T1001');
+        assert(row.checked && row.checkedAt, '写入核对状态和时间');
+        const checkedAt = row.checkedAt;
+        assert(persistedState().reconciliationRows.find(item => item.id === 'T1001').checked, '核对状态持久化');
+        const replay = parkState.actions.markReconciliationChecked('T1001');
+        assert(replay.ok && replay.idempotent, '重复核对幂等');
+        assertEqual(row.checkedAt, checkedAt, '幂等保留时间');
+      });
+
+      function runAsyncTests() {
+        if (asyncTests.length === 0) return Promise.resolve();
+        const list = document.getElementById('testList');
+        let index = 0;
+
+        function runNext() {
+          if (index >= asyncTests.length) return Promise.resolve();
+          const t = asyncTests[index++];
+          const item = document.createElement('div');
+          item.className = 'test-item';
+          const header = document.createElement('header');
+          const title = document.createElement('span');
+          title.className = 'test-title';
+          title.textContent = (tests.length + index) + '. ' + t.name;
+          const badge = document.createElement('span');
+          badge.className = 'test-badge';
+          const message = document.createElement('div');
+          message.className = 'test-message';
+
+          list.appendChild(item);
+          header.appendChild(title);
+          header.appendChild(badge);
+          item.appendChild(header);
+          item.appendChild(message);
+
+          return new Promise(function (resolve) {
+            let resolved = false;
+            const storageSnapshot = snapshotStorage();
+            const testContext = createTestContext();
+            const timeoutId = testContext.setTimer(function () { done(new Error('异步测试超时：' + t.name)); }, ASYNC_TEST_TIMEOUT);
+            function done(err) {
+              if (resolved) return;
+              resolved = true;
+              testContext.cancelAll();
+              if (parkState && typeof parkState.resetForTests === 'function') parkState.resetForTests();
+              restoreStorage(storageSnapshot);
+              if (parkState && typeof parkState.reloadForTests === 'function') parkState.reloadForTests();
+              if (err) {
+                failCount++;
+                badge.classList.add('fail');
+                badge.textContent = '失败';
+                message.classList.add('show');
+                message.textContent = err.message;
+              } else {
+                passCount++;
+                badge.classList.add('pass');
+                badge.textContent = '通过';
+              }
+              document.getElementById('passCount').textContent = passCount;
+              document.getElementById('failCount').textContent = failCount;
+              resolve();
+            }
+            try {
+              t.fn(done, testContext);
+            } catch (err) {
+              done(err);
+            }
+          }).then(runNext);
+        }
+        return runNext();
+      }
+
+      asyncTest('浏览器渲染：注销记录按 createdAt 倒序且显示原支付路径', function (done, ctx) {
+        resetToDefaults();
+        parkState.state.refundRequests = [
+          { id: 'RR-NEWER', amount: 0, frozenAmount: 0, batchAllocations: [], createdAt: '2026-07-20 11:00', status: 'pending_review', notes: '较新申请' },
+          { id: 'RR-OLDER', amount: 0, frozenAmount: 0, batchAllocations: [], createdAt: '2026-07-18 09:00', status: 'rejected', notes: '较早申请' }
+        ];
+        assert(parkState.save(), '预置注销记录应写入共享状态');
+        withIframeStages('user-refund.html', [iframeStage('initial', async function (iframe, api) {
+          await api.delay(150);
+          const rows = Array.from(iframe.contentWindow.document.querySelectorAll('#request-list > *'));
+          assertEqual(rows.length, 2, '应渲染两条预置注销记录');
+          assert(rows[0].textContent.indexOf('RR-NEWER') > -1, 'createdAt 较新的记录应位于首项');
+          assert(rows[0].textContent.indexOf('原支付路径') > -1, '首项应显示固定退款路径文案');
+          assert(rows[1].textContent.indexOf('RR-OLDER') > -1, 'createdAt 较早的记录应位于第二项');
+          api.done();
+        })], done, ctx);
+      });
+
+      asyncTest('浏览器行为：提交注销申请后返回列表且最新记录置顶', function (done, ctx) {
+        resetToDefaults();
+        const beforeCount = parkState.state.refundRequests.length;
+        withIframeStages('user-refund.html', [iframeStage('initial', async function (iframe, api) {
+          await api.delay(150);
+          const doc = iframe.contentWindow.document;
+          const reason = doc.getElementById('refund-reason');
+          if (reason) reason.value = '不再使用园区储值服务';
+          const primaryAction = doc.getElementById('primary-action');
+          primaryAction.click();
+          assert(doc.getElementById('refund-list-view').hidden, '进入申请流程后列表视图应隐藏');
+          assert(!doc.getElementById('refund-apply-view').hidden, '进入申请流程后申请视图应显示');
+          primaryAction.click();
+          doc.getElementById('confirm-submit').click();
+          await api.delay(150);
+          parkState.reloadForTests();
+          assertEqual(parkState.state.refundRequests.length, beforeCount + 1, '应新增一条注销申请');
+          const submitted = parkState.state.refundRequests.find(function (request) { return request.notes === '不再使用园区储值服务'; });
+          assert(submitted, '新提交的注销申请应存在于存储');
+          assertEqual(submitted.status, 'pending_review', '新提交注销申请状态');
+          const listView = doc.getElementById('refund-list-view');
+          const applyView = doc.getElementById('refund-apply-view');
+          assert(listView && !listView.hidden, '提交成功后列表视图应显示');
+          assert(applyView && applyView.hidden, '提交成功后申请视图应隐藏');
+          const firstRow = doc.querySelector('#request-list > *');
+          assert(firstRow, '注销列表应渲染申请记录');
+          assert(firstRow.textContent.indexOf(submitted.id) > -1, '新提交申请应按 createdAt 倒序位于首项');
+          assert(firstRow.textContent.indexOf('原支付路径') > -1, '新提交申请应显示固定退款路径文案');
+          api.done();
+        })], done, ctx);
+      });
+
+      asyncTest('页面源码：V2 页面结构与手机号展示契约', function (done, ctx) {
+        const pageFiles = {
+          wallet: 'user-wallet.html',
+          invoices: 'user-invoices.html',
+          recharge: 'user-recharge.html',
+          rechargeDetail: 'user-recharge-detail.html',
+          refund: 'user-refund.html',
+          merchantScan: 'merchant-scan.html',
+          merchantOrders: 'merchant-orders.html',
+          merchantSettlements: 'merchant-settlements.html',
+          adminAccounts: 'admin-accounts.html',
+          adminAccountDetail: 'admin-account-detail.html',
+          adminOrders: 'admin-orders.html',
+          adminRefunds: 'admin-refunds.html'
+        };
+        Promise.all(Object.keys(pageFiles).map(function (key) {
+          return fetchSource(pageFiles[key]).then(function (source) { return [key, source]; });
+        })).then(function (entries) {
+          try {
+            const sources = {};
+            entries.forEach(function (entry) { sources[entry[0]] = entry[1]; });
+
+            assertContains(sources.wallet, 'href="user-invoices.html"', '钱包直达开票页');
+            assertContains(sources.wallet, '充值记录', '钱包展示充值记录');
+            assertNotContains(sources.wallet, 'invoice-menu-apply', '钱包移除旧开票申请入口');
+            assertNotContains(sources.wallet, 'invoice-menu-titles', '钱包移除旧抬头入口');
+
+            assertNotContains(sources.refund, 'data-tab=', '注销页移除旧标签页');
+            ['注销编号', '申请时间', '注销金额', '申请原因', '退款路径', '进度', '提交注销申请'].forEach(function (text) {
+              assertContains(sources.refund, text, '注销页字段完整');
+            });
+
+            assertContains(sources.invoices, '充值记录', '开票页应展示充值记录');
+
+            const orderTable = new DOMParser().parseFromString(sources.adminOrders, 'text/html').getElementById('orders-table');
+            assert(orderTable, '后台订单应存在 orders-table');
+            const orderHeaders = Array.from(orderTable.querySelectorAll('thead th')).map(function (th) { return th.textContent.trim(); });
+            const expectedOrderHeaders = ['订单编号', '用户信息', '商户', '交易金额', '状态', '交易时间', '退款截止时间', '收款备注'];
+            assertEqual(orderHeaders.length, 8, '后台订单应正好八列');
+            expectedOrderHeaders.forEach(function (text, index) { assertEqual(orderHeaders[index], text, '后台订单第 ' + (index + 1) + ' 列'); });
+            assertNotContains(sources.adminOrders, '<th>操作</th>', '后台订单移除操作列');
+            assertNotContains(sources.adminOrders, '>详情<', '后台订单移除详情按钮');
+            assertNotContains(sources.adminOrders, 'id="order-modal"', '后台订单移除详情弹窗');
+            assertNotContains(sources.adminOrders, 'showDetail(', '后台订单移除详情处理函数');
+            assert(!/<tr\b[^>]*\bonclick\s*=|\.addEventListener\(\s*["']click["'][^;]*showDetail/s.test(sources.adminOrders), '后台订单行不应绑定详情跳转');
+
+            ['more-button', 'more-menu', '更多'].forEach(function (text) {
+              assertContains(sources.recharge, text, '充值页应提供更多菜单');
+            });
+
+            assert(/<textarea\b[^>]*id=["']remark-input["'][^>]*maxlength=["']60["'][^>]*>/i.test(sources.merchantScan), '商家备注应为 maxlength=60 的 textarea');
+            assert(/(?:#remark-input|\.remark-field\s+textarea)[^{]*\{[^}]*height\s*:\s*[^;}]+/s.test(sources.merchantScan), '备注 textarea 应设置固定高度');
+            assert(/(?:#remark-input|\.remark-field\s+textarea)[^{]*\{[^}]*resize\s*:\s*none/s.test(sources.merchantScan), '备注 textarea 应禁止缩放');
+
+            assertContains(sources.adminAccounts, '本月统计', '后台账户显示本月统计');
+            assertContains(sources.adminAccounts, '整体统计', '后台账户显示整体统计');
+            assertNotContains(sources.adminAccounts, '<th>储值内容</th>', '后台账户移除储值内容列');
+            assertNotContains(sources.adminAccounts, '<th>类型</th>', '后台账户移除类型列');
+            assertContains(sources.adminAccountDetail, '所属企业', '账户详情显示所属企业');
+            assertNotContains(sources.adminAccountDetail, '账户类型', '账户详情移除账户类型');
+            assertNotContains(sources.adminAccountDetail, '<th>交易名称</th>', '账户详情移除交易名称列');
+            assertNotContains(sources.adminAccountDetail, '<th>用户信息</th>', '账户详情移除用户信息列');
+
+            ['adminAccounts', 'adminAccountDetail', 'adminOrders'].forEach(function (key) {
+              assert(/<(?:table|section|main|div)\b/i.test(sources[key]), pageFiles[key] + ' 应包含页面结构');
+            });
+            ['merchantOrders', 'merchantSettlements'].forEach(function (key) {
+              assert(/<(?:table|section|main|div)\b/i.test(sources[key]), pageFiles[key] + ' 应包含页面结构');
+            });
+            done();
+          } catch (err) { done(err); }
+        }).catch(done);
+      });
+
+      function createTestContext() {
+        const timers = new Set();
+        const iframes = new Set();
+        const cleanups = new Set();
+        let closed = false;
+        function setTimer(fn, delay) {
+          if (closed) return null;
+          const id = setTimeout(function () {
+            timers.delete(id);
+            if (!closed) fn();
+          }, delay);
+          timers.add(id);
+          return id;
+        }
+        function clearTimer(id) {
+          if (id === null || id === undefined) return;
+          clearTimeout(id);
+          timers.delete(id);
+        }
+        function addCleanup(fn) { cleanups.add(fn); return fn; }
+        function removeIframe(iframe) {
+          if (!iframe) return;
+          iframes.delete(iframe);
+          iframe.onload = null;
+          iframe.onerror = null;
+          try {
+            const frameState = iframe.contentWindow && iframe.contentWindow.parkState;
+            if (frameState && typeof frameState.resetForTests === 'function') frameState.resetForTests();
+          } catch (_) {}
+          if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        }
+        return {
+          setTimer: setTimer,
+          clearTimer: clearTimer,
+          delay: function (delay) { return new Promise(function (resolve) { setTimer(resolve, delay); }); },
+          addCleanup: addCleanup,
+          trackIframe: function (iframe) { iframes.add(iframe); return iframe; },
+          removeIframe: removeIframe,
+          cancelAll: function () {
+            closed = true;
+            timers.forEach(clearTimeout);
+            timers.clear();
+            cleanups.forEach(function (cleanup) { try { cleanup(); } catch (_) {} });
+            cleanups.clear();
+            Array.from(iframes).forEach(removeIframe);
+          }
+        };
+      }
+
+      function iframeStage(name, onLoad) {
+        return { name: name, onLoad: onLoad };
+      }
+
+      function withIframeStages(src, stages, done, ctx) {
+        let settled = false;
+        let stageIndex = 0;
+        let waitingForLoad = true;
+        let loadTimer = null;
+        const iframe = document.createElement('iframe');
+
+        function clearLoadTimer() {
+          ctx.clearTimer(loadTimer);
+          loadTimer = null;
+        }
+
+        function resetFrameState() {
+          try {
+            const frameState = iframe.contentWindow && iframe.contentWindow.parkState;
+            if (frameState && typeof frameState.resetForTests === 'function') frameState.resetForTests();
+          } catch (_) {}
+        }
+
+        function settle(err) {
+          if (settled) return;
+          settled = true;
+          clearLoadTimer();
+          iframe.onload = null;
+          iframe.onerror = null;
+          resetFrameState();
+          ctx.removeIframe(iframe);
+          done(err);
+        }
+
+        function armLoadTimeout() {
+          clearLoadTimer();
+          const stage = stages[stageIndex];
+          loadTimer = ctx.setTimer(function () {
+            settle(new Error('iframe 加载超时：' + src + '（阶段：' + (stage ? stage.name : 'unknown') + '）'));
+          }, ASYNC_TEST_TIMEOUT);
+        }
+
+        function onLoad() {
+          if (settled) return;
+          if (!waitingForLoad) {
+            settle(new Error('iframe 重复 load：' + src + '（阶段：' + stages[stageIndex].name + '）'));
+            return;
+          }
+          clearLoadTimer();
+          waitingForLoad = false;
+          const stage = stages[stageIndex];
+          if (!stage) {
+            settle(new Error('iframe load 超出声明阶段：' + src));
+            return;
+          }
+          const api = {
+            delay: ctx.delay,
+            done: function () { settle(); },
+            fail: settle,
+            nextLoad: function () {
+              if (settled) return;
+              if (waitingForLoad) throw new Error('iframe 阶段已等待下一次 load：' + stage.name);
+              if (stageIndex + 1 >= stages.length) throw new Error('iframe 阶段未声明下一次 load：' + stage.name);
+              stageIndex++;
+              waitingForLoad = true;
+              armLoadTimeout();
+            },
+            navigate: function (url) {
+              api.nextLoad();
+              iframe.src = url;
+            }
+          };
+          try {
+            const result = stage.onLoad(iframe, api, ctx);
+            if (result && typeof result.then === 'function') result.catch(settle);
+          } catch (err) {
+            settle(err);
+          }
+        }
+
+        iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;';
+        iframe.onload = onLoad;
+        iframe.onerror = function () { settle(new Error('iframe 加载失败：' + src)); };
+        ctx.trackIframe(iframe);
+        armLoadTimeout();
+        document.body.appendChild(iframe);
+        iframe.src = src;
+      }
+
+      asyncTest('浏览器渲染：充值开票三状态按充值时间倒序展示', function (done, ctx) {
+        resetToDefaults();
+        parkState.state.transactions = parkState.state.transactions.filter(function (item) { return item.type !== 'recharge'; });
+        parkState.state.transactions.push(
+          { id: 'RECHARGE-OLDEST', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '最早充值', amount: 100, time: '2026-07-18 09:00', channel: '微信支付', status: 'success' },
+          { id: 'RECHARGE-NEWEST', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '最新充值', amount: 300, time: '2026-07-20 09:00', channel: '微信支付', status: 'success' },
+          { id: 'RECHARGE-MIDDLE', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '中间充值', amount: 200, time: '2026-07-19 09:00', channel: '微信支付', status: 'success' }
+        );
+        const invoiceTitle = { id: 'TITLE-1', parkId: 'park-001', userId: 'U001', name: '测试企业', taxId: 'TESTTAX123456789', address: '测试地址', phone: '010-1234567', bank: '测试银行', bankAccount: '1234567890', isDefault: true, deletedAt: null };
+        parkState.state.invoiceTitles = [invoiceTitle];
+        parkState.state.invoiceRecords = [
+          { id: 'IR-PENDING', parkId: 'park-001', userId: 'U001', transactionId: 'RECHARGE-MIDDLE', titleId: 'TITLE-1', titleSnapshot: invoiceTitle, amount: 200, status: 'pending', createdAt: '2026-07-20 10:05', requestId: 'REQ-IR-PENDING' },
+          { id: 'IR-DONE', parkId: 'park-001', userId: 'U001', transactionId: 'RECHARGE-OLDEST', titleId: 'TITLE-1', titleSnapshot: invoiceTitle, amount: 100, status: 'issued', createdAt: '2026-07-20 10:06', requestId: 'REQ-IR-DONE' }
+        ];
+        assert(parkState.save(), '充值流水与发票数据应写入共享状态');
+        withIframeStages('user-invoices.html', [iframeStage('initial', async function (iframe, api) {
+          await api.delay(100);
+          const rows = Array.from(iframe.contentWindow.document.querySelectorAll('.invoice-record'));
+          assertEqual(rows.length, 3, '应渲染三笔充值记录');
+          const expected = [['RECHARGE-NEWEST', '最新充值', '未开票', true], ['RECHARGE-MIDDLE', '中间充值', '开票中', false], ['RECHARGE-OLDEST', '最早充值', '已开票', false]];
+          expected.forEach(function (item, index) {
+            const row = rows[index];
+            assertEqual(row.dataset.transactionId, item[0], '第 ' + (index + 1) + ' 行交易编号');
+            assert(row.textContent.indexOf(item[1]) > -1, '第 ' + (index + 1) + ' 行应显示' + item[1]);
+            assert(row.textContent.indexOf(item[2]) > -1, '第 ' + (index + 1) + ' 行应显示' + item[2]);
+            const button = row.querySelector('button');
+            assertEqual(Boolean(button), item[3], item[2] + '申请按钮可见性');
+            if (button) assertEqual(button.textContent.trim(), '申请开票', '未开票行操作文案');
+          });
+          api.done();
+        })], done, ctx);
+      });
+
+      asyncTest('浏览器行为：充值记录行进入对应详情页', function (done, ctx) {
+        resetToDefaults();
+        let transactionId;
+        withIframeStages('user-invoices.html', [
+          iframeStage('invoice-list', async function (iframe, api) {
+            await api.delay(100);
+            const row = iframe.contentWindow.document.querySelector('.invoice-record');
+            assert(row, '开票页应渲染可点击的充值记录');
+            transactionId = row.dataset.transactionId;
+            assert(transactionId, '充值记录行应通过 data-transaction-id 标识交易');
+            api.nextLoad();
+            row.click();
+          }),
+          iframeStage('recharge-detail', async function (iframe, api) {
+            await api.delay(100);
+            assert(iframe.contentWindow.location.href.indexOf('user-recharge-detail.html?id=' + encodeURIComponent(transactionId)) > -1, '充值记录应进入对应详情页');
+            api.done();
+          })
+        ], done, ctx);
+      });
+
+      asyncTest('浏览器行为：申请开票阻止行跳转并打开弹窗', function (done, ctx) {
+        resetToDefaults();
+        withIframeStages('user-invoices.html', [iframeStage('initial', async function (iframe, api) {
+          await api.delay(100);
+          const win = iframe.contentWindow;
+          const doc = win.document;
+          const row = doc.querySelector('.invoice-record');
+          assert(row, '开票页应渲染充值记录');
+          const button = row.querySelector('button');
+          assert(button, '充值记录应渲染申请开票按钮');
+          const hrefBefore = win.location.href;
+          let stopped = 0;
+          const originalStopPropagation = win.Event.prototype.stopPropagation;
+          ctx.addCleanup(function () { win.Event.prototype.stopPropagation = originalStopPropagation; });
+          win.Event.prototype.stopPropagation = function () {
+            stopped++;
+            return originalStopPropagation.call(this);
+          };
+          button.click();
+          win.Event.prototype.stopPropagation = originalStopPropagation;
+          await api.delay(100);
+          const failures = [];
+          if (stopped !== 1) failures.push('stopPropagation 应调用 1 次，实际 ' + stopped + ' 次');
+          if (!doc.getElementById('apply-modal').classList.contains('active')) failures.push('申请弹窗未打开');
+          if (win.location.href !== hrefBefore) failures.push('错误触发充值记录跳转');
+          assertEqual(failures.length, 0, failures.join('；'));
+          api.done();
+        })], done, ctx);
+      });
+
+      asyncTest('浏览器行为：更多菜单完整点击交互', function (done, ctx) {
+        resetToDefaults();
+        withIframeStages('user-recharge.html', [iframeStage('initial', async function (iframe, api) {
+          await api.delay(100);
+          const win = iframe.contentWindow;
+          const doc = win.document;
+          const button = doc.getElementById('more-button');
+          const menu = doc.getElementById('more-menu');
+          const refundLink = menu && menu.querySelector('a[href="user-refund.html"]');
+          assert(button, '充值页应存在更多按钮');
+          assert(menu, '充值页应存在更多菜单');
+          assert(refundLink, '更多菜单应存在注销链接');
+          assertEqual(refundLink.getAttribute('href'), 'user-refund.html', '注销链接目标');
+
+          button.click();
+          assertEqual(button.getAttribute('aria-expanded'), 'true', '点击后 aria-expanded');
+          assert(!menu.hidden, '点击后更多菜单应显示');
+          menu.click();
+          assertEqual(button.getAttribute('aria-expanded'), 'true', '点击菜单容器应阻止冒泡并保持展开');
+          assert(!menu.hidden, '点击菜单容器后菜单应保持显示');
+
+          refundLink.addEventListener('click', function (event) { event.preventDefault(); });
+          refundLink.click();
+          assertEqual(button.getAttribute('aria-expanded'), 'false', '点击注销链接后 aria-expanded 应先复位');
+          assert(menu.hidden, '点击注销链接后菜单应先关闭');
+          assertEqual(refundLink.getAttribute('href'), 'user-refund.html', '注销链接点击后目标保持正确');
+
+          button.click();
+          doc.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+          assertEqual(button.getAttribute('aria-expanded'), 'false', '文档点击后 aria-expanded');
+          assert(menu.hidden, '文档点击后更多菜单应隐藏');
+          api.done();
+        })], done, ctx);
+      });
+
+      asyncTest('浏览器渲染：后台页面显示唯一完整手机号', function (done, ctx) {
+        resetToDefaults();
+        const fullPhone = '13912345678';
+        parkState.state.user.phone = fullPhone;
+        assert(parkState.save(), '唯一完整手机号应可写入共享状态');
+        const pages = ['admin-accounts.html', 'admin-account-detail.html', 'admin-orders.html'];
+        const stages = pages.map(function (page, index) {
+          return iframeStage(page, async function (iframe, api) {
+            await api.delay(100);
+            assert(iframe.contentWindow.document.body.textContent.indexOf(fullPhone) > -1, page + ' 应渲染唯一完整手机号');
+            if (index + 1 < pages.length) api.navigate(pages[index + 1]);
+            else api.done();
+          });
+        });
+        withIframeStages(pages[0], stages, done, ctx);
+      });
+
+      asyncTest('浏览器渲染：商户页面仅显示唯一脱敏手机号', function (done, ctx) {
+        resetToDefaults();
+        const fullPhone = '13912345678';
+        const maskedPhone = '139****5678';
+        parkState.state.user.phone = fullPhone;
+        assert(parkState.save(), '唯一完整手机号应可写入共享状态');
+        const pages = ['merchant-orders.html', 'merchant-settlements.html'];
+        const stages = pages.map(function (page, index) {
+          return iframeStage(page, async function (iframe, api) {
+            await api.delay(100);
+            const doc = iframe.contentWindow.document;
+            if (page === 'merchant-orders.html') {
+              const row = doc.querySelector('.order-item');
+              assert(row, page + ' 应渲染订单记录');
+              row.click();
+            }
+            const rendered = doc.body.textContent;
+            assert(rendered.indexOf(maskedPhone) > -1, page + ' 应渲染唯一脱敏手机号');
+            assert(rendered.indexOf(fullPhone) === -1, page + ' 不得渲染唯一完整手机号');
+            if (index + 1 < pages.length) api.navigate(pages[index + 1]);
+            else api.done();
+          });
+        });
+        withIframeStages(pages[0], stages, done, ctx);
+      });
+
+      asyncTest('DOM stub：merchant-scan 确认收款直接完成', function (done, ctx) {
+        resetToDefaults();
+        const orderCountBefore = parkState.state.orders.length;
+        withIframeStages('merchant-scan.html', [
+          iframeStage('scan', async function (iframe, api) {
+            await api.delay(200);
+            const doc = iframe.contentWindow.document;
+            const scanBtn = doc.getElementById('scan-btn');
+            if (scanBtn) scanBtn.click();
+            ['2', '5', '5', '0'].forEach(function (key) {
+              const btn = doc.querySelector('.key[data-key="' + key + '"]');
+              if (btn) btn.click();
+            });
+            const remarkInput = doc.getElementById('remark-input');
+            assert(remarkInput, '应存在备注输入框');
+            remarkInput.value = '午餐套餐\n少放辣';
+            doc.getElementById('confirm-amount-btn').click();
+            await api.delay(200);
+            parkState.reloadForTests();
+            assert(parkState.state.orders.length > orderCountBefore, '订单应已创建');
+            const order = parkState.state.orders[parkState.state.orders.length - 1];
+            assert(order.status === 'paid', '收款应直接完成，status 为 paid');
+            assert(order.merchantId === 'M002', 'merchantId 正确');
+            assertApprox(order.amount, 25.50, 'amount 正确');
+            assertEqual(order.remark, '午餐套餐\n少放辣', '多行备注应保留换行');
+            assert(!order[['prin', 'cipal'].join('')] && !order[['gi', 'ft'].join('')], '订单不含旧余额字段');
+            assert(doc.getElementById('result-screen').classList.contains('active'), '应显示收款结果页');
+            assert(doc.getElementById('result-title').textContent === '收款成功', '结果页标题应为收款成功');
+            api.done();
+          })
+        ], done, ctx);
+      });
+
+      function runTests() {
+        const list = document.getElementById('testList');
+        list.innerHTML = '';
+        passCount = 0;
+        failCount = 0;
+
+        tests.forEach((t, index) => {
+          const item = document.createElement('div');
+          item.className = 'test-item';
+          const header = document.createElement('header');
+          const title = document.createElement('span');
+          title.className = 'test-title';
+          title.textContent = (index + 1) + '. ' + t.name;
+          const badge = document.createElement('span');
+          badge.className = 'test-badge';
+          const message = document.createElement('div');
+          message.className = 'test-message';
+
+          try {
+            t.fn();
+            passCount++;
+            badge.classList.add('pass');
+            badge.textContent = '通过';
+          } catch (err) {
+            failCount++;
+            badge.classList.add('fail');
+            badge.textContent = '失败';
+            message.classList.add('show');
+            message.textContent = err.message;
+          }
+
+          header.appendChild(title);
+          header.appendChild(badge);
+          item.appendChild(header);
+          item.appendChild(message);
+          list.appendChild(item);
+        });
+
+        document.getElementById('passCount').textContent = passCount;
+        document.getElementById('failCount').textContent = failCount;
+
+        runAsyncTests().then(function () {
+          document.getElementById('passCount').textContent = passCount;
+          document.getElementById('failCount').textContent = failCount;
+        });
+      }
+
+      runTests();
+    })();
+  </script>
+</body>
+</html>

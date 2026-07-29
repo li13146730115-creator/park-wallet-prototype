@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>扫码收款</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content { padding: 0 var(--page-padding) 18px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .scan-hero {
+      border-radius: 0 0 var(--radius-card) var(--radius-card);
+      margin: 0 calc(-1 * var(--page-padding)) 14px;
+      padding: 20px 18px 28px;
+      color: #fff;
+      background: var(--gradient-hero);
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+    .scan-hero::before,
+    .scan-hero::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    .scan-hero::before { width: 260px; height: 260px; right: -110px; top: -130px; }
+    .scan-hero::after { width: 150px; height: 150px; left: -65px; bottom: -95px; }
+    .scan-title { position: relative; z-index: 2; font-size: 14px; opacity: 0.88; margin-bottom: 16px; }
+    .scan-frame {
+      position: relative;
+      z-index: 2;
+      width: 220px;
+      height: 220px;
+      margin: 0 auto;
+      border: 2px dashed rgba(255, 255, 255, 0.5);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      display: grid;
+      place-items: center;
+    }
+    .scan-frame svg { width: 64px; height: 64px; opacity: 0.85; }
+    .scan-hint { position: relative; z-index: 2; font-size: 13px; opacity: 0.82; margin-top: 16px; }
+    .scan-actions { padding: 8px 0 0; }
+    .scan-actions .btn { width: 100%; height: 54px; font-size: 17px; font-weight: 750; }
+
+    .amount-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 22px 16px 18px;
+      margin-top: 14px;
+      text-align: center;
+    }
+    .amount-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    .amount-value { font-size: 44px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+    .amount-value small { font-size: 24px; margin-right: 2px; }
+    .amount-balance { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .amount-error { font-size: 12px; color: var(--error); margin-top: 8px; min-height: 18px; }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 18px;
+      padding: 0 4px;
+    }
+    .key {
+      height: 60px;
+      border-radius: 14px;
+      border: 0;
+      background: var(--card-bg);
+      box-shadow: var(--shadow-card);
+      font-size: 22px;
+      font-weight: 650;
+      color: var(--ink);
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform 0.1s ease, opacity 0.15s ease;
+    }
+    .key:active { transform: scale(0.96); }
+    .key.func { color: var(--muted); font-size: 18px; font-weight: 700; }
+    .key.zero { grid-column: 2; }
+    .amount-actions { margin-top: 18px; padding: 0 4px; }
+    .amount-actions .btn { width: 100%; height: 52px; font-size: 16px; font-weight: 750; }
+    .amount-actions .btn:disabled { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.5); }
+    .remark-field { margin-top: 12px; text-align: left; }
+    .remark-field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    .remark-field textarea { width: 100%; height: 88px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-small); font-size: 14px; font-family: inherit; line-height: 1.5; resize: none; box-sizing: border-box; }
+
+    .result-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 36px 20px 24px;
+      margin-top: 14px;
+      text-align: center;
+    }
+    .result-icon {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 16px;
+      font-size: 38px;
+    }
+    .result-icon.success { background: var(--success-bg); color: var(--success); }
+    .result-icon.fail { background: var(--error-bg); color: var(--error); }
+    .result-title { font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+    .result-subtitle { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+    .result-detail { background: var(--page-bg); border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: left; }
+    .result-detail .row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
+    .result-detail .row label { color: var(--muted); }
+    .result-detail .row value { color: var(--ink); font-weight: 650; }
+    .result-actions .btn { width: 100%; height: 48px; font-size: 15px; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="mobile-page">
+    <div class="phone-shell">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span class="status-icons">
+          <span class="signal"><i></i><i></i><i></i><i></i></span>
+          <span>5G</span>
+          <span class="battery"><b></b></span>
+        </span>
+      </div>
+      <div class="app-shell">
+        <header class="topbar">
+          <a href="merchant-home.html" class="back">‹</a>
+          <strong>扫码收款</strong>
+          <span class="more"><a href="merchant-settlements.html" style="font-size:13px;letter-spacing:0;text-decoration:none;color:var(--info);font-weight:600;">分账管理</a></span>
+        </header>
+        <main class="app-content">
+          <section id="scan-screen" class="screen active">
+            <div class="scan-hero">
+              <div class="scan-title">扫描用户付款码</div>
+              <div class="scan-frame">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <rect x="2" y="2" width="20" height="20" rx="6"></rect>
+                  <path d="M2 12h20"></path>
+                </svg>
+              </div>
+              <div class="scan-hint">将取景框对准用户付款码</div>
+            </div>
+            <div class="scan-actions">
+              <button class="btn btn-primary" id="scan-btn">扫码收款</button>
+            </div>
+          </section>
+
+          <section id="amount-screen" class="screen">
+            <div class="amount-card">
+              <div class="amount-label">收款金额</div>
+              <div class="amount-value"><small>¥</small><span id="amount-display">0.00</span></div>
+              <div class="amount-error" id="amount-error"></div>
+            </div>
+            <div class="keypad">
+              <button class="key" data-key="1">1</button>
+              <button class="key" data-key="2">2</button>
+              <button class="key" data-key="3">3</button>
+              <button class="key" data-key="4">4</button>
+              <button class="key" data-key="5">5</button>
+              <button class="key" data-key="6">6</button>
+              <button class="key" data-key="7">7</button>
+              <button class="key" data-key="8">8</button>
+              <button class="key" data-key="9">9</button>
+              <button class="key func" data-key="C">C</button>
+              <button class="key zero" data-key="0">0</button>
+              <button class="key func" data-key="⌫">⌫</button>
+            </div>
+            <div class="amount-actions">
+              <button class="btn btn-primary" id="confirm-amount-btn">确认收款</button>
+            </div>
+            <div class="remark-field">
+              <label for="remark-input">收款备注</label>
+              <textarea id="remark-input" placeholder="可自定义输入备注内容" maxlength="60"></textarea>
+            </div>
+          </section>
+
+          <section id="result-screen" class="screen">
+            <div class="result-card">
+              <div class="result-icon success" id="result-icon">✓</div>
+              <div class="result-title" id="result-title">收款成功</div>
+              <div class="result-subtitle" id="result-subtitle">-</div>
+              <div class="result-detail">
+                <div class="row">
+                  <label>收款金额</label>
+                  <value id="result-amount">-</value>
+                </div>
+                <div class="row">
+                  <label>收款时间</label>
+                  <value id="result-time">-</value>
+                </div>
+              </div>
+              <div class="result-actions">
+                <a href="merchant-home.html" class="btn btn-primary" id="result-done-btn">完成</a>
+              </div>
+            </div>
+          </section>
+        </main>
+        <nav class="bottom-nav">
+          <a href="merchant-home.html" class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            首页
+          </a>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            服务
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 2l9 4.9V17L12 22l-9-4.9V7z"></path></svg>
+            领福利
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            客服
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            我的
+          </div>
+        </nav>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+  </div>
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const OWNER = { parkId: 'park-001', userId: 'U001' };
+      const MERCHANT_ID = 'M002';
+      const MAX_CENTS = 999999;
+
+      let cents = 0;
+
+      function formatTime(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const h = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        return `${y}-${m}-${d} ${h}:${min}`;
+      }
+      function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+      }
+      function getAmount() { return cents / 100; }
+      function updateAmountDisplay() {
+        document.getElementById('amount-display').textContent = (cents / 100).toFixed(2);
+        validateAmount();
+      }
+      function validateAmount() {
+        const amount = getAmount();
+        const errorEl = document.getElementById('amount-error');
+        const btn = document.getElementById('confirm-amount-btn');
+        let error = '';
+        if (amount === 0) error = '请输入收款金额';
+        errorEl.textContent = error;
+        btn.disabled = !!error;
+      }
+      function onKey(key) {
+        if (key === 'C') cents = 0;
+        else if (key === '⌫') cents = Math.floor(cents / 10);
+        else {
+          if (cents >= MAX_CENTS) return;
+          cents = cents * 10 + parseInt(key, 10);
+        }
+        updateAmountDisplay();
+      }
+      function createOrderAndPay() {
+        const amount = getAmount();
+        const remark = document.getElementById('remark-input').value.trim();
+        const collectResult = parkState.actions.collectPayment({
+          parkId: OWNER.parkId,
+          userId: OWNER.userId,
+          merchantId: MERCHANT_ID,
+          amount: amount,
+          remark: remark || undefined,
+          requestId: 'REQ-SCAN-' + Date.now()
+        });
+        if (collectResult.ok) {
+          showResult(true, '收款成功', amount);
+        } else {
+          const message = collectResult.code === 'INSUFFICIENT_BALANCE' ? '用户余额不足，收款失败' : '收款失败：' + collectResult.code;
+          showResult(false, message, amount);
+        }
+      }
+      function showResult(success, subtitle, amount) {
+        showScreen('result-screen');
+        const icon = document.getElementById('result-icon');
+        icon.className = 'result-icon ' + (success ? 'success' : 'fail');
+        icon.textContent = success ? '✓' : '✕';
+        document.getElementById('result-title').textContent = success ? '收款成功' : '收款失败';
+        document.getElementById('result-subtitle').textContent = subtitle;
+        document.getElementById('result-amount').textContent = '¥' + formatMoney(amount);
+        document.getElementById('result-time').textContent = formatTime(new Date());
+      }
+
+      document.getElementById('scan-btn').addEventListener('click', () => { cents = 0; updateAmountDisplay(); showScreen('amount-screen'); });
+      document.querySelectorAll('.key').forEach(btn => btn.addEventListener('click', () => onKey(btn.dataset.key)));
+      document.getElementById('confirm-amount-btn').addEventListener('click', createOrderAndPay);
+      updateAmountDisplay();
+    })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

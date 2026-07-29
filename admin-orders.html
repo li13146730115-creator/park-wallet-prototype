@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>订单管理 - 园区储值管理后台</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .metrics-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .metric-card { background: var(--card-bg); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-card); text-align: center; }
+    .metric-card label { display: block; color: var(--muted); font-size: 12px; }
+    .metric-card b { display: block; margin-top: 6px; font-size: 20px; color: var(--ink); }
+    .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filters input, .filters select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font: 14px var(--font-family); background: #fff; }
+    .quick-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .quick-filters button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; background: #fff; font-size: 13px; font-family: inherit; cursor: pointer; }
+    .quick-filters button.active { background: var(--info-bg); color: var(--info); border-color: var(--info); font-weight: 700; }
+    .tag-muted { background: #f5f5f5; color: #777; }
+    .btn { padding: 8px 16px; font-size: 14px; box-shadow: none; }
+    .btn-default { background: #fff; border: 1px solid var(--border); color: var(--ink); }
+    @media (max-width: 768px) { .metrics-bar { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 储值后台</div>
+      <nav>
+        <a href="admin-accounts.html">储值账户</a>
+        
+        <a href="admin-orders.html" class="active">订单管理</a>
+        <a href="admin-refunds.html">退款审核</a>
+        <a href="admin-settlements.html">分账管理</a><a href="admin-merchants.html">商户配置</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header"><h1>订单管理</h1><div>管理员</div></div>
+
+      <div class="metrics-bar">
+        <div class="metric-card"><label>订单数量</label><b id="metric-count">0</b></div>
+        <div class="metric-card"><label>订单金额</label><b id="metric-amount">¥0.00</b></div>
+        <div class="metric-card"><label>退款订单数量</label><b id="metric-refund-count">0</b></div>
+        <div class="metric-card"><label>退款订单金额</label><b id="metric-refund-amount">¥0.00</b></div>
+      </div>
+
+      <div class="admin-table">
+        <div class="quick-filters" id="quick-filters">
+          <button class="active" data-range="today">今日</button>
+          <button data-range="yesterday">昨日</button>
+          <button data-range="7d">近 7 天</button>
+          <button data-range="custom">自定义时间</button>
+        </div>
+        <div class="filters" id="custom-range" style="display:none;">
+          <input type="date" id="filter-start" aria-label="开始日期">
+          <input type="date" id="filter-end" aria-label="结束日期">
+        </div>
+        <div class="filters">
+          <input type="text" id="filter-keyword" placeholder="订单编号 / 用户姓名 / 手机号 / 商户">
+          <select id="filter-status">
+            <option value="">全部状态</option>
+            <option value="paid">交易成功</option>
+            <option value="refunding">退款中</option>
+            <option value="refunded">退款</option>
+            <option value="payment_failed">支付失败</option>
+          </select>
+          <button class="btn btn-primary" id="query-button">查询</button>
+          <button class="btn btn-default" id="reset-button">重置</button>
+          <button class="btn btn-default" id="export-button">导出 CSV</button>
+        </div>
+        <table id="orders-table">
+          <thead><tr><th>订单编号</th><th>用户信息</th><th>商户</th><th>交易金额</th><th>状态</th><th>交易时间</th><th>退款截止时间</th><th>收款备注</th></tr></thead>
+          <tbody id="order-table"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script src="admin-utils.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const state = window.parkState.state;
+      const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
+      const orders = (state.orders || []).filter(function (item) { return item.parkId === parkId; });
+      const parkUsers = (state.users || []).filter(function (item) { return item.parkId === parkId; });
+      const merchants = (state.merchants || []).filter(function (item) { return item.parkId === parkId; });
+
+      function pad(value) { return String(value).padStart(2, '0'); }
+      function dateString(date) { return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()); }
+      const TODAY = dateString(new Date());
+      const YESTERDAY = dateString(new Date(Date.now() - 86400000));
+      const SEVEN_DAYS_AGO = dateString(new Date(Date.now() - 6 * 86400000));
+
+      const filter = { range: 'today', start: '', end: '', status: '', keyword: '' };
+      const els = {
+        quickFilters: document.getElementById('quick-filters'),
+        customRange: document.getElementById('custom-range'),
+        start: document.getElementById('filter-start'),
+        end: document.getElementById('filter-end'),
+        keyword: document.getElementById('filter-keyword'),
+        status: document.getElementById('filter-status'),
+        table: document.getElementById('order-table')
+      };
+
+      function money(value) { return '¥' + formatMoney(Number(value) || 0); }
+      function datePart(value) { return String(value || '').slice(0, 10); }
+      function parseDate(value) { return new Date(String(value || '').replace(/-/g, '/')); }
+      function userLabel(order) {
+        const found = parkUsers.find(function (u) { return u.id === order.userId; });
+        return found ? found.name + '_' + found.phone : (order.userId || '-');
+      }
+      function merchantLabel(order) {
+        const found = merchants.find(function (m) { return m.id === order.merchantId; });
+        return found ? found.name : (order.merchantName || order.merchant || '-');
+      }
+      function displayStatus(order) {
+        if (order.status === 'paid') return ['交易成功', 'tag-success'];
+        if (order.status === 'refunding') return ['退款中', 'tag-info'];
+        if (order.status === 'refunded') return ['退款', 'tag-info'];
+        return ['支付失败', 'tag-error'];
+      }
+      function inRange(order) {
+        const d = datePart(order.time);
+        if (filter.range === 'today') return d === TODAY;
+        if (filter.range === 'yesterday') return d === YESTERDAY;
+        if (filter.range === '7d') return d >= SEVEN_DAYS_AGO && d <= TODAY;
+        if (filter.range === 'custom') {
+          const date = parseDate(order.time);
+          if (!filter.start || !filter.end) return true;
+          return date >= new Date(filter.start + 'T00:00:00') && date <= new Date(filter.end + 'T23:59:59');
+        }
+        return true;
+      }
+      function matchesSearch(order) {
+        if (!filter.keyword) return true;
+        const kw = filter.keyword.trim().toLowerCase();
+        if (!kw) return true;
+        const hay = [order.id, userLabel(order), merchantLabel(order)].join(' ').toLowerCase();
+        return hay.includes(kw);
+      }
+      function matchesStatus(order) {
+        if (!filter.status) return true;
+        return order.status === filter.status;
+      }
+      function currentRows() {
+        return orders.filter(o => inRange(o) && matchesSearch(o) && matchesStatus(o)).sort((a, b) => String(b.time).localeCompare(String(a.time)));
+      }
+      function appendCell(row, value, className) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        if (className) cell.className = className;
+        row.appendChild(cell);
+        return cell;
+      }
+      function emptyRow(colspan, message) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = colspan;
+        cell.className = 'text-center text-muted';
+        cell.textContent = message;
+        row.appendChild(cell);
+        return row;
+      }
+      function renderMetrics() {
+        const rows = currentRows();
+        const refundRows = rows.filter(o => o.status === 'refunded' || o.status === 'refunding');
+        document.getElementById('metric-count').textContent = rows.length;
+        document.getElementById('metric-amount').textContent = money(rows.reduce((sum, o) => sum + o.amount, 0));
+        document.getElementById('metric-refund-count').textContent = refundRows.length;
+        document.getElementById('metric-refund-amount').textContent = money(refundRows.reduce((sum, o) => sum + o.amount, 0));
+      }
+      function renderTable() {
+        const rows = currentRows();
+        els.table.replaceChildren();
+        if (!rows.length) {
+          els.table.appendChild(emptyRow(8, '当前条件下暂无订单'));
+          return;
+        }
+        rows.forEach(function (order) {
+          const status = displayStatus(order);
+          const tr = document.createElement('tr');
+          appendCell(tr, order.id);
+          appendCell(tr, userLabel(order));
+          appendCell(tr, merchantLabel(order));
+          appendCell(tr, money(order.amount));
+          appendCell(tr, status[0], 'tag ' + status[1]);
+          appendCell(tr, order.time || '-');
+          appendCell(tr, order.refundDeadline || '-');
+          appendCell(tr, order.remark || '-');
+          els.table.appendChild(tr);
+        });
+      }
+      els.quickFilters.addEventListener('click', function (e) {
+        if (e.target.tagName !== 'BUTTON') return;
+        Array.from(els.quickFilters.children).forEach(b => b.classList.toggle('active', b === e.target));
+        filter.range = e.target.dataset.range;
+        els.customRange.style.display = filter.range === 'custom' ? 'flex' : 'none';
+        renderMetrics();
+        renderTable();
+      });
+      [els.start, els.end].forEach(input => input.addEventListener('change', function () {
+        filter.start = els.start.value;
+        filter.end = els.end.value;
+        renderMetrics();
+        renderTable();
+      }));
+      document.getElementById('query-button').addEventListener('click', function () {
+        filter.keyword = els.keyword.value;
+        filter.status = els.status.value;
+        renderMetrics();
+        renderTable();
+      });
+      document.getElementById('reset-button').addEventListener('click', function () {
+        filter.range = 'today'; filter.start = ''; filter.end = ''; filter.keyword = ''; filter.status = '';
+        Array.from(els.quickFilters.children).forEach(b => b.classList.toggle('active', b.dataset.range === 'today'));
+        els.customRange.style.display = 'none';
+        els.start.value = ''; els.end.value = ''; els.keyword.value = ''; els.status.value = '';
+        renderMetrics();
+        renderTable();
+      });
+      document.getElementById('export-button').addEventListener('click', function () { window.exportTableCsv('orders-table', '订单管理'); });
+      els.keyword.addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('query-button').click(); });
+
+      renderMetrics();
+      renderTable();
+    })();
+  </script>
+</body>
+</html>

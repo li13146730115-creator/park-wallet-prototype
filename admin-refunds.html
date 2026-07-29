@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>退款审核 - 园区储值后台</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .section{margin-bottom:20px}.section-title-row,.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.section-title-row{justify-content:space-between;margin-bottom:14px}.section-title-row h2{margin:0;font-size:16px}.btn-sm{padding:6px 12px;font-size:12px}.btn-danger{background:var(--error);color:#fff}.btn-default{background:#fff;border:1px solid var(--border);color:var(--ink)}.empty{text-align:center;color:var(--muted);padding:24px}.modal{display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}.modal.show{display:flex}.modal-content{width:620px;max-width:90%;max-height:88vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:var(--shadow-float)}.modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--divider)}.modal-body{padding:20px}.close{border:0;background:none;font-size:24px;color:var(--muted)}.detail-row{display:flex;justify-content:space-between;gap:20px;padding:11px 0;border-bottom:1px solid var(--divider)}.detail-row label{color:var(--muted)}.timeline{margin-top:20px}.timeline-item{position:relative;padding:0 0 20px 28px}.timeline-item:before{content:'';position:absolute;left:7px;top:7px;width:10px;height:10px;border-radius:50%;background:var(--info)}.timeline-item:after{content:'';position:absolute;left:11px;top:19px;bottom:0;width:2px;background:var(--border)}.timeline-item:last-child:after{display:none}.timeline-item p{margin:4px 0 0;color:var(--muted);font-size:12px}.notice{display:none;margin-bottom:14px;padding:10px 12px;border-radius:8px}.notice.show{display:block}.notice.success{background:var(--success-bg);color:var(--success)}.notice.error{background:var(--error-bg);color:var(--error)}.filter-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:12px;background:var(--card-bg);border-radius:var(--radius-card);box-shadow:var(--shadow-card)}.filter-tab{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:#fff;color:var(--ink-light);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}.filter-tab.active{border-color:var(--info);background:var(--info-bg);color:var(--info)}
+  </style>
+</head>
+<body>
+  <div class="admin-layout"><aside class="admin-sidebar"><div class="brand">海智园区 · 储值后台</div><nav><a href="admin-accounts.html">储值账户</a><a href="admin-orders.html">订单管理</a><a href="admin-refunds.html" class="active">退款审核</a><a href="admin-settlements.html">分账管理</a><a href="admin-merchants.html">商户配置</a></nav></aside>
+    <main class="admin-content"><header class="admin-header"><h1>退款审核</h1><div>管理员</div></header><div id="notice" class="notice" role="status"></div>
+      <div class="filter-tabs" id="refund-status-filter"></div>
+      <section class="admin-table section"><div class="section-title-row"><h2>退款审核列表</h2><button class="btn btn-white" data-export="refund-table" data-name="退款审核记录">导出 CSV</button></div><table><thead><tr><th>退款单号</th><th>用户</th><th>状态</th><th>退款金额</th><th>冻结金额</th><th>申请原因</th><th>申请时间</th><th>操作</th></tr></thead><tbody id="refund-table"></tbody></table></section>
+    </main>
+  </div>
+  <div id="progress-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-title"><div class="modal-content"><div class="modal-header"><b id="progress-title">退款审核进度</b><button class="close" id="close-progress" type="button" aria-label="关闭">×</button></div><div class="modal-body" id="progress-body"></div></div></div>
+  <script src="shared-state.js"></script>
+  <script src="admin-utils.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
+    const actions = parkState.actions;
+    const tableBody=document.getElementById('refund-table'),modal=document.getElementById('progress-modal'),progressBody=document.getElementById('progress-body'),notice=document.getElementById('notice'),filterContainer=document.getElementById('refund-status-filter');
+    const statusMap={pending_review:['待审核','tag-warning'],reviewing:['审核中','tag-info'],rejected:['驳回','tag-error'],arrived:['已到账','tag-success'],completed:['已完成','tag-success'],manual_processing:['人工处理中','tag-error']};
+    const tabs=[{label:'全部',status:'all'},{label:'待审核',status:'pending_review'},{label:'审核中',status:'reviewing'},{label:'驳回',status:'rejected'},{label:'已到账',status:'arrived'},{label:'已完成',status:'completed'},{label:'人工处理中',status:'manual_processing'}];
+    let currentFilter='all';
+
+    function parkRequests(){return (parkState.state.refundRequests||[]).filter(function(item){return item.parkId===parkId})}
+    function userName(request){const user=(parkState.state.users||[]).find(function(item){return item.parkId===request.parkId&&item.id===request.userId});return user?user.name:request.userId}
+    function text(tag,value,className){const node=document.createElement(tag);node.textContent=value;if(className)node.className=className;return node}
+    function cell(row,value){const td=document.createElement('td');td.textContent=value;row.appendChild(td);return td}
+    function statusTag(request){const info=statusMap[request.status]||[request.status,'tag-muted'];return text('span',info[0],'tag '+info[1])}
+    function actionButton(label,className,handler){const button=text('button',label,'btn '+className+' btn-sm');button.type='button';button.addEventListener('click',handler);return button}
+    function message(value,ok){notice.textContent=value;notice.className='notice show '+(ok?'success':'error')}
+    function runAction(action,id,successMessage){const result=action(id,{parkId:parkId});if(!result.ok){message('操作失败：'+result.code,false);return result}message(successMessage,true);render();return result}
+
+    function renderFilters(){
+      filterContainer.replaceChildren();
+      tabs.forEach(function(tab){
+        const button=document.createElement('button');
+        button.className='filter-tab'+(tab.status===currentFilter?' active':'');
+        button.type='button';
+        button.textContent=tab.label;
+        button.addEventListener('click',function(){currentFilter=tab.status;renderFilters();render();});
+        filterContainer.appendChild(button);
+      });
+    }
+
+    function addRow(request){
+      const tr=document.createElement('tr');
+      cell(tr,request.id);
+      cell(tr,userName(request));
+      const statusCell=document.createElement('td');statusCell.appendChild(statusTag(request));tr.appendChild(statusCell);
+      cell(tr,'¥'+formatMoney(request.amount));
+      cell(tr,'¥'+formatMoney(request.frozenAmount));
+      cell(tr,request.notes||'-');
+      cell(tr,request.createdAt);
+      const td=document.createElement('td'),actionsBox=document.createElement('div');actionsBox.className='actions';
+      actionsBox.appendChild(actionButton('查看进度','btn-default',()=>openProgress(request)));
+      if(request.status==='pending_review'){
+        actionsBox.appendChild(actionButton('开始审核','btn-primary',()=>runAction(actions.startRefundReview,request.id,'已开始审核')));
+        actionsBox.appendChild(actionButton('驳回','btn-danger',()=>runAction(actions.rejectParkRefund,request.id,'退款申请已驳回')));
+      }else if(request.status==='reviewing'){
+        actionsBox.appendChild(actionButton('标记到账','btn-primary',()=>runAction(actions.markRefundArrived,request.id,'已标记到账')));
+        actionsBox.appendChild(actionButton('驳回','btn-danger',()=>runAction(actions.rejectParkRefund,request.id,'退款申请已驳回')));
+        actionsBox.appendChild(actionButton('人工处理','btn-default',()=>runAction(actions.markRefundManualProcessing,request.id,'已转人工处理')));
+      }else if(request.status==='arrived'){
+        actionsBox.appendChild(actionButton('完成退款','btn-primary',()=>runAction(actions.completeBalanceRefund,request.id,'退款已完成')));
+        actionsBox.appendChild(actionButton('人工处理','btn-default',()=>runAction(actions.markRefundManualProcessing,request.id,'已转人工处理')));
+      }else if(request.status==='manual_processing'){
+        actionsBox.appendChild(actionButton('恢复审核','btn-primary',()=>runAction(actions.resumeRefundReview,request.id,'已恢复审核')));
+        actionsBox.appendChild(actionButton('标记到账','btn-default',()=>runAction(actions.markRefundArrived,request.id,'已标记到账')));
+      }
+      td.appendChild(actionsBox);tr.appendChild(td);tableBody.appendChild(tr);
+    }
+    function emptyRow(colspan,value){const tr=document.createElement('tr'),td=text('td',value,'empty');td.colSpan=colspan;tr.appendChild(td);return tr}
+    function render(){
+      tableBody.replaceChildren();
+      const sorted=parkRequests().slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+      const filtered=currentFilter==='all'?sorted:sorted.filter(r=>r.status===currentFilter);
+      filtered.forEach(addRow);
+      if(!filtered.length)tableBody.appendChild(emptyRow(8,'当前状态下暂无退款审核记录'));
+    }
+    function addDetail(label,value){const row=document.createElement('div');row.className='detail-row';row.append(text('label',label),text('span',value));progressBody.appendChild(row)}
+    function openProgress(request){
+      progressBody.replaceChildren();
+      addDetail('退款单号',request.id);
+      addDetail('用户',userName(request));
+      addDetail('当前状态',(statusMap[request.status]||[request.status])[0]);
+      addDetail('退款金额','¥'+formatMoney(request.amount));
+      addDetail('冻结金额','¥'+formatMoney(request.frozenAmount));
+      addDetail('申请原因',request.notes||'-');
+      const steps=[['提交申请','已完成',request.createdAt]];
+      if(request.status==='pending_review')steps.push(['园区审核','待处理','等待园区开始审核']);
+      if(request.status==='reviewing')steps.push(['园区审核','审核中','等待审核结果']);
+      if(request.status==='rejected')steps.push(['园区审核','已驳回','冻结已解除']);
+      if(request.status==='arrived')steps.push(['园区审核','已通过','退款已原路到账'],['退款执行','已到账','待确认完成']);
+      if(request.status==='manual_processing')steps.push(['退款执行','执行异常','已转人工处理']);
+      if(request.status==='completed')steps.push(['园区审核','已通过','审核完成'],['退款执行','已完成','原支付路径']);
+      const timeline=document.createElement('div');timeline.className='timeline';
+      steps.forEach((step,index)=>{const item=document.createElement('div');item.className='timeline-item';item.append(text('b',(index+1)+'. '+step[0]+' · '+step[1]),text('p',step[2]));timeline.appendChild(item)});
+      progressBody.appendChild(timeline);modal.classList.add('show');
+    }
+    function exportTable(id,name){
+      const table=document.getElementById(id).closest('table'),rows=Array.from(table.querySelectorAll('tr')).map(tr=>Array.from(tr.children).map(td=>'"'+td.innerText.replaceAll('"','""')+'"').join(','));
+      const blob=new Blob(['\ufeff'+rows.join('\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name+'.csv';link.click();URL.revokeObjectURL(url);
+    }
+    document.querySelectorAll('[data-export]').forEach(button=>button.addEventListener('click',()=>exportTable(button.dataset.export,button.dataset.name)));
+    document.getElementById('close-progress').addEventListener('click',()=>modal.classList.remove('show'));
+    modal.addEventListener('click',event=>{if(event.target===modal)modal.classList.remove('show')});
+    renderFilters(); render();
+  })();
+  </script>
+</body>
+</html>
