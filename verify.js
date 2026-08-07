@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const childProcess = require('child_process');
 
 const BASE_DIR = __dirname;
 const FILES = {
@@ -14,6 +15,7 @@ const FILES = {
   userInvoices: path.join(BASE_DIR, 'user-invoices.html'),
   userRechargeDetail: path.join(BASE_DIR, 'user-recharge-detail.html'),
   userRecharge: path.join(BASE_DIR, 'user-recharge.html'),
+  aggregatePayment: path.join(BASE_DIR, 'aggregate-payment.html'),
   userRefund: path.join(BASE_DIR, 'user-refund.html'),
   merchantScan: path.join(BASE_DIR, 'merchant-scan.html'),
   adminAccounts: path.join(BASE_DIR, 'admin-accounts.html'),
@@ -1676,7 +1678,18 @@ test('shared-state: default demo refunds cover every review status', () => {
   });
 });
 
-// 8. Forbidden word scan
+// 8. Checkout deployment guard
+test('checkout page is tracked for static deployment', () => {
+  assert(fs.existsSync(FILES.aggregatePayment), 'Checkout page must exist locally');
+  const tracked = childProcess.spawnSync(
+    'git',
+    ['ls-files', '--error-unmatch', 'aggregate-payment.html'],
+    { cwd: BASE_DIR, encoding: 'utf8' }
+  );
+  assertEqual(tracked.status, 0, 'Checkout page must be tracked so GitHub Pages publishes it');
+});
+
+// 9. Forbidden word scan
 test('Forbidden word scan across source files', () => forbiddenWordScan());
 
 // 8. State consistency

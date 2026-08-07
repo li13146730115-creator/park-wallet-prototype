@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>聚合收银台</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content { padding: 0 var(--page-padding) 18px; }
+    .payment-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      padding: 30px 20px 26px;
+      box-shadow: var(--shadow-card);
+      text-align: center;
+      margin-top: 14px;
+      margin-bottom: 18px;
+    }
+    .payment-card .label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .payment-card .amount {
+      font-size: 40px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -1px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .payment-card .amount small {
+      font-size: 22px;
+      font-weight: 700;
+      margin-right: 2px;
+    }
+    .payment-card .desc {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .channel-list {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      padding: 1px 16px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 14px;
+    }
+    .channel-item {
+      display: flex;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--divider);
+      cursor: pointer;
+    }
+    .channel-item:last-child { border-bottom: 0; }
+    .channel-item .icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      margin-right: 12px;
+      font-size: 16px;
+    }
+    .channel-item .icon.wechat { background: #eaf9ef; color: #2ec86e; }
+    .channel-item .icon.alipay { background: #e9f5ff; color: #1677ff; }
+    .channel-item .name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .channel-item .check {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: grid;
+      place-items: center;
+      transition: all 0.15s ease;
+    }
+    .channel-item.active .check {
+      border-color: var(--info);
+      background: var(--info);
+    }
+    .channel-item .check::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fff;
+      transform: scale(0);
+      transition: transform 0.12s ease;
+    }
+    .channel-item.active .check::after { transform: scale(1); }
+    .confirm-btn {
+      width: 100%;
+      height: 50px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .confirm-btn:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(21, 40, 75, 0.48);
+      backdrop-filter: blur(3px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      padding: 28px 24px;
+      width: min(280px, 78vw);
+      text-align: center;
+      box-shadow: var(--shadow-float);
+      animation: popIn 0.22s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.92); opacity: 0.7; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-box .icon-success {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--success-bg);
+      color: var(--success);
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      margin: 0 auto 12px;
+    }
+    .modal-box .icon-fail {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--error-bg);
+      color: var(--error);
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      margin: 0 auto 12px;
+    }
+    .modal-box h4 { margin: 0 0 6px; font-size: 16px; }
+    .modal-box p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="mobile-page">
+    <div class="phone-shell">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span class="status-icons">
+          <span class="signal"><i></i><i></i><i></i><i></i></span>
+          <span>5G</span>
+          <span class="battery"><b></b></span>
+        </span>
+      </div>
+      <div class="app-shell">
+        <header class="topbar">
+          <a href="user-recharge.html" class="back">‹</a>
+          <strong>聚合收银台</strong>
+          <span class="more" style="visibility: hidden;">•••</span>
+        </header>
+        <main class="app-content">
+          <div class="payment-card">
+            <div class="label">聚合收银台</div>
+            <div class="amount"><small>¥</small><span id="amount">0.00</span></div>
+            <div class="desc">海智园区储值充值</div>
+          </div>
+
+          <div class="section-title">
+            <b>选择支付方式</b>
+          </div>
+
+          <div class="channel-list">
+            <div class="channel-item active" data-channel="微信支付">
+              <div class="icon wechat">✓</div>
+              <div class="name">微信支付</div>
+              <div class="check"></div>
+            </div>
+            <div class="channel-item" data-channel="支付宝">
+              <div class="icon alipay">支</div>
+              <div class="name">支付宝</div>
+              <div class="check"></div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary confirm-btn" id="confirm-btn">确认支付</button>
+        </main>
+        <nav class="bottom-nav">
+          <a href="user-home.html" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            首页
+          </a>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            服务
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 2l9 4.9V17L12 22l-9-4.9V7z"></path></svg>
+            领福利
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            客服
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            我的
+          </div>
+        </nav>
+        <div class="home-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="result-modal">
+    <div class="modal-box" id="modal-box">
+      <h4 id="modal-title">提示</h4>
+      <p id="modal-desc"></p>
+    </div>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const params = new URLSearchParams(window.location.search);
+      const amount = parseFloat(params.get('amount')) || 0;
+      const requestId = params.get('requestId') || '';
+
+      if (amount <= 0 || !requestId) {
+        window.location.href = 'user-recharge.html';
+        return;
+      }
+
+      document.getElementById('amount').textContent = formatMoney(amount);
+
+      let selectedChannel = '微信支付';
+      const channels = document.querySelectorAll('.channel-item');
+      channels.forEach(channel => {
+        channel.addEventListener('click', () => {
+          channels.forEach(c => c.classList.remove('active'));
+          channel.classList.add('active');
+          selectedChannel = channel.dataset.channel;
+        });
+      });
+
+      const confirmBtn = document.getElementById('confirm-btn');
+      const modal = document.getElementById('result-modal');
+      const modalBox = document.getElementById('modal-box');
+      const modalTitle = document.getElementById('modal-title');
+      const modalDesc = document.getElementById('modal-desc');
+
+      function showModal(type, title, desc) {
+        const oldIcon = modalBox.querySelector('.icon-success, .icon-fail');
+        if (oldIcon) oldIcon.remove();
+        modalTitle.textContent = title;
+        modalDesc.textContent = desc;
+        if (type === 'success') {
+          const icon = document.createElement('div');
+          icon.className = 'icon-success';
+          icon.textContent = '✓';
+          modalBox.insertBefore(icon, modalTitle);
+        } else if (type === 'failure') {
+          const icon = document.createElement('div');
+          icon.className = 'icon-fail';
+          icon.textContent = '✕';
+          modalBox.insertBefore(icon, modalTitle);
+        }
+        modal.classList.add('active');
+      }
+
+      function hideModal() { modal.classList.remove('active'); }
+
+      confirmBtn.addEventListener('click', function () {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '支付中…';
+
+        const result = parkState.actions.recharge(amount, requestId);
+
+        if (result.ok) {
+          showModal('success', '支付成功', '充值已到账，即将返回钱包');
+          setTimeout(() => {
+            hideModal();
+            window.location.href = 'user-wallet.html';
+          }, 1200);
+        } else {
+          showModal('failure', '支付失败', '充值失败，请稍后重试');
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '确认支付';
+          setTimeout(() => hideModal(), 1500);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
