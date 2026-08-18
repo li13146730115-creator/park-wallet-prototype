@@ -1133,7 +1133,48 @@ test('shared-state: legacy stored order IDs and references migrate on reload', (
   assert(migrated.save(), 'Migrated state should pass public validation and save');
 });
 
+test('shared-state: previous demo cache reloads populated merchant defaults', () => {
+  const source = createPageContext();
+  const sourceState = runSharedState(source);
+  sourceState.resetForTests();
+  const stale = JSON.parse(JSON.stringify(sourceState.state));
+  stale.orders = stale.orders.filter(item => item.merchantId !== 'M002');
+  stale.transactions = stale.transactions.filter(item => item.merchantId !== 'M002');
+  stale.pendingSettlements = stale.pendingSettlements.filter(item => item.merchantId !== 'M002');
+
+  const ctx = createPageContext({ store: {
+    parkStateV2: JSON.stringify(stale),
+    parkStateV2Version: 'demo-2026-07-22-1'
+  }});
+  const parkState = runSharedState(ctx);
+  assert(parkState.state.orders.some(item => item.merchantId === 'M002' && String(item.id).startsWith('DMO-HZKF-')), 'Previous demo cache should reload M002 orders');
+  assert(parkState.state.transactions.some(item => item.merchantId === 'M002'), 'Previous demo cache should reload M002 transactions');
+  assert(parkState.state.pendingSettlements.some(item => item.merchantId === 'M002'), 'Previous demo cache should reload M002 settlements');
+  assert(parkState.save(), 'Reloaded merchant defaults should pass validation');
+});
+
 // 3. merchant-home tests
+test('merchant demo defaults: formal pages render business records', () => {
+  const cases = [
+    { name: 'merchant-home', file: FILES.merchantHome, register: registerMerchantHome, target: 'recent-orders', marker: 'DMO-HZKF-' },
+    { name: 'merchant-orders', file: FILES.merchantOrders, register: registerMerchantOrders, target: 'order-list', marker: 'DMO-HZKF-' },
+    { name: 'merchant-settlements', file: FILES.merchantSettlements, register: registerMerchantSettlements, target: 'flow-list', marker: 'DMO-HZKF-' }
+  ];
+  cases.forEach(page => {
+    const ctx = createPageContext({ page: page.name + '.html' });
+    const parkState = runSharedState(ctx);
+    parkState.resetForTests();
+    page.register(ctx.doc);
+    ctx.win.formatMoney = value => Number(value).toFixed(2);
+    ctx.win.alert = () => {};
+    ctx.win.confirm = () => true;
+    runPageScripts(page.name, ctx, readFile(page.file));
+    const rendered = textTree(ctx.doc.getElementById(page.target));
+    assert(rendered.includes(page.marker), page.name + ' should render default merchant business data');
+    assert(!rendered.includes('暂无收款记录') && !rendered.includes('暂无分账流水'), page.name + ' should not render an empty-state message by default');
+  });
+});
+
 test('merchant-home: filter tabs update summary and recent orders', () => {
   const ctx = createPageContext({ page: 'merchant-home.html' });
   const parkState = runSharedState(ctx);
