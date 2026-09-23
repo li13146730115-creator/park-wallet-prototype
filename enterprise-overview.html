@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业资金概览 - 园区储值</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .enterprise-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .enterprise-panel { background: var(--card-bg); border-radius: 12px; padding: 16px; box-shadow: var(--shadow-card); }
+    .enterprise-panel h2 { margin: 0 0 14px; font-size: 16px; }
+    .activity-list { display: grid; gap: 12px; }
+    .activity-item { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--divider); font-size: 13px; }
+    .activity-item:last-child { padding-bottom: 0; border-bottom: 0; }
+    .activity-item span { color: var(--muted); }
+    .empty-state { padding: 24px 0; text-align: center; color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) { .enterprise-summary { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 企业管理</div>
+      <nav>
+        <a class="active" href="enterprise-overview.html">资金概览</a>
+        <a href="enterprise-employees.html">员工账户</a>
+        <a href="enterprise-recharge.html">在线充值</a>
+        <a href="enterprise-batches.html">充值批次</a>
+        <a href="enterprise-refunds.html">企业余额退款</a>
+        <a href="enterprise-receipts.html">企业收据</a>
+      </nav>
+    </aside>
+
+    <main class="admin-content">
+      <div class="admin-header">
+        <div>
+          <h1>企业资金概览</h1>
+          <p id="enterpriseName">企业管理员后台</p>
+        </div>
+        <a href="index.html">返回四端入口</a>
+      </div>
+
+      <section class="admin-metrics" aria-label="企业资金指标">
+        <div class="admin-metric"><label>累计充值</label><b id="totalRecharge">¥0.00</b></div>
+        <div class="admin-metric"><label>员工企业余额</label><b id="availableBalance">¥0.00</b></div>
+        <div class="admin-metric"><label>可退金额</label><b id="refundableBalance">¥0.00</b></div>
+        <div class="admin-metric"><label>待支付批次</label><b id="pendingBatchCount">0</b></div>
+      </section>
+
+      <section class="enterprise-summary">
+        <div class="enterprise-panel">
+          <h2>近期充值</h2>
+          <div class="activity-list" id="recentRecharge"></div>
+        </div>
+        <div class="enterprise-panel">
+          <h2>近期退款动态</h2>
+          <div class="activity-list" id="recentRefund"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const enterpriseId = 'E001';
+      const parkState = window.parkState;
+      const state = parkState.state;
+      const enterprise = parkState.selectors.getEnterpriseById(enterpriseId);
+      const employeeIds = enterprise ? enterprise.employeeUserIds : [];
+      const accounts = employeeIds.map(function (userId) {
+        return parkState.selectors.getAccountByUser(userId);
+      }).filter(Boolean);
+      const batches = parkState.selectors.getRechargeBatchesByEnterprise(enterpriseId);
+      const refunds = state.refundRequests.filter(function (item) {
+        return item.type === 'enterprise_balance' && item.enterpriseId === enterpriseId;
+      });
+
+      function money(value) {
+        return '¥' + Number(value || 0).toFixed(2);
+      }
+
+      function enterpriseAvailable(account) {
+        return account.enterpriseBalances.filter(function (item) {
+          return item.enterpriseId === enterpriseId;
+        }).reduce(function (sum, item) {
+          return sum + item.available;
+        }, 0);
+      }
+
+      const totalRecharge = batches.filter(function (item) {
+        return item.postingStatus === 'posted';
+      }).reduce(function (sum, item) {
+        return sum + item.totalAmount;
+      }, 0);
+      const available = accounts.reduce(function (sum, account) {
+        return sum + enterpriseAvailable(account);
+      }, 0);
+      const pendingRefund = refunds.filter(function (item) {
+        return item.status === 'pending';
+      }).reduce(function (sum, item) {
+        return sum + item.amount;
+      }, 0);
+      const pendingBatches = batches.filter(function (item) {
+        return item.paymentStatus === 'pending';
+      });
+
+      document.getElementById('enterpriseName').textContent = enterprise ? enterprise.name : '企业管理员后台';
+      document.getElementById('totalRecharge').textContent = money(totalRecharge);
+      document.getElementById('availableBalance').textContent = money(available);
+      document.getElementById('refundableBalance').textContent = money(Math.max(0, available - pendingRefund));
+      document.getElementById('pendingBatchCount').textContent = String(pendingBatches.length);
+
+      function renderList(targetId, items, renderItem, emptyText) {
+        const target = document.getElementById(targetId);
+        if (!items.length) {
+          target.innerHTML = '<div class="empty-state">' + emptyText + '</div>';
+          return;
+        }
+        target.innerHTML = items.slice().reverse().slice(0, 5).map(renderItem).join('');
+      }
+
+      renderList('recentRecharge', batches, function (batch) {
+        return '<div class="activity-item"><div><strong>' + batch.id + '</strong><br><span>' + (batch.createdAt || '-') + '</span></div><div>' + money(batch.totalAmount) + '<br><span>' + batch.paymentStatus + ' / ' + batch.postingStatus + '</span></div></div>';
+      }, '暂无充值批次，可前往在线充值发起。');
+
+      renderList('recentRefund', refunds, function (refund) {
+        return '<div class="activity-item"><div><strong>' + refund.id + '</strong><br><span>' + (refund.createdAt || '-') + '</span></div><div>' + money(refund.amount) + '<br><span>' + refund.status + '</span></div></div>';
+      }, '暂无企业余额退款申请。');
+    })();
+  </script>
+</body>
+</html>

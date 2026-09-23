@@ -630,7 +630,24 @@ body {
   }
 
   .admin-sidebar {
-    display: none;
+    min-width: 0;
+    padding: 12px 0 0;
+  }
+
+  .admin-sidebar .brand {
+    padding: 0 16px 12px;
+  }
+
+  .admin-sidebar nav {
+    display: flex;
+    margin-top: 0;
+    overflow-x: auto;
+  }
+
+  .admin-sidebar nav a {
+    flex: 0 0 auto;
+    padding: 11px 16px;
+    white-space: nowrap;
   }
 
   .admin-metrics {

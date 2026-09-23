@@ -17,7 +17,8 @@
     drawer.setAttribute('role', 'navigation');
     drawer.setAttribute('aria-label', '入口切换');
 
-    const currentGroup = currentPath.startsWith('merchant-') ? 'merchant'
+    const currentGroup = currentPath.startsWith('enterprise-') ? 'enterprise'
+      : currentPath.startsWith('merchant-') ? 'merchant'
       : currentPath.startsWith('admin-') ? 'admin' : 'user';
 
     const groupDefs = {
@@ -26,9 +27,22 @@
         links: [
           { href: 'user-home.html', label: '园区码服务' },
           { href: 'user-wallet.html', label: '钱包首页' },
-          { href: 'user-recharge.html', label: '余额充值' },
-          { href: 'user-payment-code.html', label: '付款码' },
-          { href: 'user-refund.html', label: '注销申请' }
+          { href: 'user-recharge.html', label: '个人充值' },
+          { href: 'user-payment-code.html', label: '统一付款码' },
+          { href: 'user-orders.html', label: '消费订单' },
+          { href: 'user-invoices.html', label: '票据中心' },
+          { href: 'user-refund.html', label: '个人余额退款' }
+        ]
+      },
+      enterprise: {
+        title: '企业管理员后台',
+        links: [
+          { href: 'enterprise-overview.html', label: '资金概览' },
+          { href: 'enterprise-employees.html', label: '员工账户' },
+          { href: 'enterprise-recharge.html', label: '在线充值' },
+          { href: 'enterprise-batches.html', label: '充值批次' },
+          { href: 'enterprise-refunds.html', label: '企业余额退款' },
+          { href: 'enterprise-receipts.html', label: '企业收据' }
         ]
       },
       merchant: {
@@ -36,17 +50,21 @@
         links: [
           { href: 'merchant-home.html', label: '商户首页' },
           { href: 'merchant-scan.html', label: '扫码收款' },
-          { href: 'merchant-orders.html', label: '订单记录' },
-          { href: 'merchant-settlements.html', label: '分账管理' }
+          { href: 'merchant-orders.html', label: '消费订单' },
+          { href: 'merchant-invoices.html', label: '消费发票' },
+          { href: 'merchant-settlements.html', label: '结算记录' }
         ]
       },
       admin: {
         title: '储值后台',
         links: [
-          { href: 'admin-accounts.html', label: '储值账户' },
-          { href: 'admin-orders.html', label: '订单管理' },
+          { href: 'admin-accounts.html', label: '账户管理' },
+          { href: 'admin-enterprises.html', label: '企业管理' },
+          { href: 'admin-enterprise-recharge.html', label: '代企业充值' },
+          { href: 'admin-recharge-batches.html', label: '充值批次' },
+          { href: 'admin-orders.html', label: '消费订单' },
           { href: 'admin-refunds.html', label: '退款审核' },
-          { href: 'admin-settlements.html', label: '分账管理' },
+          { href: 'admin-reconciliation.html', label: '结算与对账' },
           { href: 'admin-merchants.html', label: '商户配置' }
         ]
       }

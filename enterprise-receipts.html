@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业收据 - 园区储值</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .receipt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .panel { min-width: 0; background: var(--card-bg); border-radius: 12px; padding: 18px; box-shadow: var(--shadow-card); }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    .panel h2 { margin: 0 0 5px; font-size: 17px; }
+    .panel-intro { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .record-count { flex: none; min-width: 28px; padding: 5px 9px; border-radius: 999px; color: var(--info); background: var(--info-bg); text-align: center; font-size: 12px; font-weight: 700; }
+    .record-list { display: grid; gap: 11px; }
+    .record-card { padding: 14px; border: 1px solid var(--border); border-radius: 10px; }
+    .record-title, .record-line { display: flex; justify-content: space-between; gap: 16px; }
+    .record-title { align-items: baseline; }
+    .record-title strong { overflow-wrap: anywhere; }
+    .record-title .amount { flex: none; color: var(--info); }
+    .record-line { margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .record-line span:last-child { text-align: right; overflow-wrap: anywhere; }
+    .status { display: inline-flex; padding: 3px 8px; border-radius: 7px; color: #9a6500; background: var(--warning-bg); font-size: 11px; font-weight: 700; }
+    .status-success { color: #177444; background: var(--success-bg); }
+    .item-list { margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--divider); }
+    .item-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .empty { padding: 34px 8px; color: var(--muted); text-align: center; font-size: 13px; line-height: 1.7; }
+    @media (max-width: 980px) { .receipt-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 520px) { .record-title, .record-line { flex-direction: column; gap: 4px; } .record-line span:last-child { text-align: left; } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 企业管理</div>
+      <nav>
+        <a href="enterprise-overview.html">资金概览</a>
+        <a href="enterprise-employees.html">员工账户</a>
+        <a href="enterprise-recharge.html">在线充值</a>
+        <a href="enterprise-batches.html">充值批次</a>
+        <a href="enterprise-refunds.html">企业余额退款</a>
+        <a class="active" href="enterprise-receipts.html">企业收据</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header">
+        <div><h1>企业收据</h1><p>集中查看企业充值收据与余额退款凭据</p></div>
+        <a href="enterprise-overview.html">返回资金概览</a>
+      </div>
+      <div class="receipt-grid">
+        <section class="panel" aria-labelledby="rechargeHeading">
+          <div class="panel-head">
+            <div><h2 id="rechargeHeading">充值收据</h2><p class="panel-intro">企业充值成功入账后自动生成，可按来源批次核对。</p></div>
+            <span class="record-count" id="receiptCount">0</span>
+          </div>
+          <div class="record-list" id="receiptList"></div>
+        </section>
+        <section class="panel" aria-labelledby="refundHeading">
+          <div class="panel-head">
+            <div><h2 id="refundHeading">退款凭据</h2><p class="panel-intro">记录企业余额退款金额、原充值批次与退款去向。</p></div>
+            <span class="record-count" id="refundCount">0</span>
+          </div>
+          <div class="record-list" id="refundList"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const enterpriseId = 'E001';
+      const parkState = window.parkState;
+      const state = parkState.state;
+      const receiptList = document.getElementById('receiptList');
+      const refundList = document.getElementById('refundList');
+
+      function money(value) { return '¥' + Number(value || 0).toFixed(2); }
+      function destinationText(value) {
+        if (value === 'original_payer') return '原支付账户';
+        if (value === 'enterprise_payer_account') return '企业付款账户';
+        if (value === 'mixed') return '按原渠道分别退回';
+        return '-';
+      }
+      function statusText(value) {
+        return { pending: '处理中', succeeded: '已完成', completed: '已完成', failed: '失败' }[value] || value || '-';
+      }
+      function appendLine(parent, labelText, valueText) {
+        const line = document.createElement('div');
+        line.className = 'record-line';
+        const label = document.createElement('span');
+        label.textContent = labelText;
+        const value = document.createElement('span');
+        value.textContent = valueText;
+        line.appendChild(label);
+        line.appendChild(value);
+        parent.appendChild(line);
+      }
+      function appendEmpty(parent, text) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = text;
+        parent.appendChild(empty);
+      }
+      function createTitle(id, amount) {
+        const title = document.createElement('div');
+        title.className = 'record-title';
+        const number = document.createElement('strong');
+        number.textContent = id;
+        const value = document.createElement('strong');
+        value.className = 'amount';
+        value.textContent = money(amount);
+        title.appendChild(number);
+        title.appendChild(value);
+        return title;
+      }
+
+      const receipts = state.invoiceRecords.filter(function (item) {
+        return item.type === 'recharge_receipt' && item.enterpriseId === enterpriseId;
+      }).slice().sort(function (a, b) {
+        return String(b.createdAt).localeCompare(String(a.createdAt));
+      });
+      document.getElementById('receiptCount').textContent = String(receipts.length);
+      if (!receipts.length) {
+        appendEmpty(receiptList, '暂无充值收据。企业在线充值成功入账后，收据会自动显示在这里。');
+      } else {
+        receipts.forEach(function (receipt) {
+          const card = document.createElement('article');
+          card.className = 'record-card';
+          card.appendChild(createTitle(receipt.id, receipt.amount));
+          appendLine(card, '来源批次', receipt.sourceId || '-');
+          appendLine(card, '生成时间', receipt.createdAt || '-');
+          receiptList.appendChild(card);
+        });
+      }
+
+      const refunds = state.refundRequests.filter(function (item) {
+        return item.type === 'enterprise_balance' && item.enterpriseId === enterpriseId;
+      }).slice().sort(function (a, b) {
+        return String(b.createdAt).localeCompare(String(a.createdAt));
+      });
+      document.getElementById('refundCount').textContent = String(refunds.length);
+      if (!refunds.length) {
+        appendEmpty(refundList, '暂无退款凭据。企业余额退款申请提交后，凭据会自动显示在这里。');
+      } else {
+        refunds.forEach(function (refund) {
+          const card = document.createElement('article');
+          card.className = 'record-card';
+          card.appendChild(createTitle(refund.id, refund.amount));
+          const statusLine = document.createElement('div');
+          statusLine.className = 'record-line';
+          const statusLabel = document.createElement('span');
+          statusLabel.textContent = '申请状态';
+          const status = document.createElement('span');
+          status.className = refund.status === 'succeeded' || refund.status === 'completed' ? 'status status-success' : 'status';
+          status.textContent = statusText(refund.status);
+          statusLine.appendChild(statusLabel);
+          statusLine.appendChild(status);
+          card.appendChild(statusLine);
+          appendLine(card, '退款去向', destinationText(refund.refundDestination));
+          appendLine(card, '申请时间', refund.createdAt || '-');
+
+          if (Array.isArray(refund.items) && refund.items.length) {
+            const items = document.createElement('div');
+            items.className = 'item-list';
+            refund.items.forEach(function (item) {
+              const user = parkState.selectors.getUserById(item.userId);
+              const row = document.createElement('div');
+              row.className = 'item-row';
+              const source = document.createElement('span');
+              source.textContent = (user ? user.name : item.userId) + ' · 原充值批次 ' + item.rechargeBatchId;
+              const amount = document.createElement('strong');
+              amount.textContent = money(item.amount);
+              row.appendChild(source);
+              row.appendChild(amount);
+              items.appendChild(row);
+            });
+            card.appendChild(items);
+          }
+          refundList.appendChild(card);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

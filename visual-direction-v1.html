@@ -1,0 +1,47 @@
+<style>
+  .direction-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:22px}.direction{border:2px solid #e8edf5;border-radius:22px;background:#fff;overflow:hidden;cursor:pointer;transition:.2s}.direction:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(22,55,105,.12)}.direction.selected{border-color:#1687ff;box-shadow:0 0 0 4px rgba(22,135,255,.10)}.preview{background:#eef3f9;padding:14px;min-height:430px}.phone{width:178px;margin:auto;border:5px solid #15213a;border-radius:25px;overflow:hidden;background:#f4f6f9;box-shadow:0 10px 24px rgba(17,34,68,.18)}.phone-top{height:16px;background:#fff}.hero{padding:16px 13px 20px;color:#fff;background:linear-gradient(135deg,#1169ef,#25c8ec);position:relative}.hero small{opacity:.8}.hero strong{display:block;font-size:25px;margin:7px 0}.hero button{border:0;border-radius:14px;padding:6px 12px;background:#fff;color:#0874e8;font-weight:700}.bubble{position:absolute;right:10px;top:28px;width:38px;height:38px;border-radius:14px;background:linear-gradient(145deg,#fff,#9eeeff);box-shadow:inset -5px -5px 10px rgba(0,109,255,.18)}.mobile-card{margin:10px;background:#fff;border-radius:14px;padding:11px}.row{display:flex;justify-content:space-between;gap:6px}.pill{font-size:9px;padding:5px 6px;border-radius:8px;background:#edf6ff;color:#1679e8}.line{height:7px;background:#e8edf4;border-radius:8px;margin-top:8px}.line.blue{background:#92d9ff;width:64%}.nav{display:flex;justify-content:space-around;padding:8px 3px;background:#fff;font-size:8px;color:#7e899a}.desk{margin-top:16px;border-radius:12px;overflow:hidden;background:#f3f6fa;box-shadow:0 8px 20px rgba(17,34,68,.12)}.desk-head{height:27px;background:#12284b;color:#fff;padding:7px 10px;font-size:9px}.desk-body{display:grid;grid-template-columns:44px 1fr;min-height:135px}.side{background:#fff;padding:8px 5px;font-size:7px;color:#536177}.panel{padding:9px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.metric{background:#fff;border-radius:6px;padding:7px;font-size:7px}.metric b{display:block;color:#153564;font-size:11px}.table{margin-top:7px;background:#fff;border-radius:6px;padding:6px}.table .line{height:5px;margin-top:5px}.direction:nth-child(2) .hero{background:linear-gradient(135deg,#173c91,#6a5cff)}.direction:nth-child(2) .preview{background:#f3f0ff}.direction:nth-child(2) .desk-head{background:#29245a}.direction:nth-child(3) .hero{background:linear-gradient(150deg,#087a84,#31caa4)}.direction:nth-child(3) .preview{background:#eff8f6}.direction:nth-child(3) .desk-head{background:#123f48}.direction-body{padding:15px}.direction-body h3{margin:0 0 7px}.direction-body p{font-size:13px;line-height:1.55;margin:0;color:#647083}.tag{display:inline-block;margin-top:10px;border-radius:20px;padding:4px 9px;font-size:11px;background:#f0f5fa;color:#53657a}.recommended{background:#e9f5ff;color:#0874e8;font-weight:700}@media(max-width:900px){.direction-grid{grid-template-columns:1fr}.preview{min-height:auto}}
+</style>
+
+<h2>移动端与运营后台视觉方向</h2>
+<p class="subtitle">移动端延续现有园区系统的亲和感，后台独立强化资金管理效率。请选择整体方向。</p>
+
+<div class="direction-grid">
+  <div class="direction" data-choice="a" onclick="toggleSelect(this)">
+    <div class="preview">
+      <div class="phone">
+        <div class="phone-top"></div><div class="hero"><small>储值余额</small><strong>¥ 268.00</strong><button>立即充值</button><div class="bubble"></div></div>
+        <div class="mobile-card"><div class="row"><span class="pill">付款码</span><span class="pill">账单明细</span><span class="pill">余额退款</span></div></div>
+        <div class="mobile-card"><b style="font-size:11px;color:#172f55">最近交易</b><div class="line blue"></div><div class="line"></div><div class="line"></div></div>
+        <div class="nav"><span>首页</span><span>服务</span><span>领福利</span><span>客服</span><span>我的</span></div>
+      </div>
+      <div class="desk"><div class="desk-head">海智园区 · 储值运营中心</div><div class="desk-body"><div class="side">总览<br><br>充值<br><br>退款<br><br>结算</div><div class="panel"><div class="metrics"><div class="metric">储值余额<b>328.6万</b></div><div class="metric">今日消费<b>12.8万</b></div><div class="metric">待审核<b>18笔</b></div></div><div class="table"><div class="line blue"></div><div class="line"></div><div class="line"></div><div class="line"></div></div></div></div></div>
+    </div>
+    <div class="direction-body"><h3>A. 智慧蓝双端统一</h3><p>移动端使用蓝青渐变、圆角卡片和轻量 3D 元素；后台采用深海军蓝导航与清晰财务卡片，品牌连续且专业。</p><span class="tag recommended">推荐：品牌与效率最平衡</span></div>
+  </div>
+
+  <div class="direction" data-choice="b" onclick="toggleSelect(this)">
+    <div class="preview">
+      <div class="phone">
+        <div class="phone-top"></div><div class="hero"><small>我的园区钱包</small><strong>¥ 268.00</strong><button>充值享好礼</button><div class="bubble"></div></div>
+        <div class="mobile-card"><div class="row"><span class="pill">扫码支付</span><span class="pill">充值活动</span><span class="pill">我的账单</span></div></div>
+        <div class="mobile-card"><b style="font-size:11px;color:#332c6e">本月优惠</b><div class="line blue"></div><div class="line"></div><div class="line"></div></div>
+        <div class="nav"><span>首页</span><span>服务</span><span>福利</span><span>客服</span><span>我的</span></div>
+      </div>
+      <div class="desk"><div class="desk-head">园区资金运营平台</div><div class="desk-body"><div class="side">工作台<br><br>活动<br><br>商户<br><br>对账</div><div class="panel"><div class="metrics"><div class="metric">活动转化<b>36.2%</b></div><div class="metric">赠送金额<b>8.6万</b></div><div class="metric">活跃用户<b>2,136</b></div></div><div class="table"><div class="line blue"></div><div class="line"></div><div class="line"></div><div class="line"></div></div></div></div></div>
+    </div>
+    <div class="direction-body"><h3>B. 活动运营强化</h3><p>更突出充值档位、优惠与运营转化，视觉更活跃；适合拉新促活，但资金审核与对账的专业感稍弱。</p><span class="tag">偏营销增长</span></div>
+  </div>
+
+  <div class="direction" data-choice="c" onclick="toggleSelect(this)">
+    <div class="preview">
+      <div class="phone">
+        <div class="phone-top"></div><div class="hero"><small>可用总余额</small><strong>¥ 268.00</strong><button>查看资金构成</button><div class="bubble"></div></div>
+        <div class="mobile-card"><div class="row"><span class="pill">付款码</span><span class="pill">本金</span><span class="pill">赠送金</span></div></div>
+        <div class="mobile-card"><b style="font-size:11px;color:#16464b">资金动态</b><div class="line blue"></div><div class="line"></div><div class="line"></div></div>
+        <div class="nav"><span>首页</span><span>服务</span><span>权益</span><span>客服</span><span>我的</span></div>
+      </div>
+      <div class="desk"><div class="desk-head">储值资金监管台</div><div class="desk-body"><div class="side">资金<br><br>流水<br><br>审核<br><br>对账</div><div class="panel"><div class="metrics"><div class="metric">本金余额<b>286.4万</b></div><div class="metric">赠送余额<b>42.2万</b></div><div class="metric">差异金额<b>¥0.00</b></div></div><div class="table"><div class="line blue"></div><div class="line"></div><div class="line"></div><div class="line"></div></div></div></div></div>
+    </div>
+    <div class="direction-body"><h3>C. 资金透明优先</h3><p>前后台都强调本金、赠送金和账务状态，信息严谨、监管感强；但移动端相对理性，弱化现有系统的生活服务氛围。</p><span class="tag">偏财务监管</span></div>
+  </div>
+</div>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>员工账户 - 园区储值</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; }
+    .filter-bar input, .filter-bar select { min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; font: inherit; }
+    .filter-bar input { flex: 1; }
+    .status-active { color: var(--success); font-weight: 600; }
+    .employee-name { font-weight: 700; }
+    .muted { color: var(--muted); }
+    @media (max-width: 768px) { .filter-bar { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 企业管理</div>
+      <nav>
+        <a href="enterprise-overview.html">资金概览</a>
+        <a class="active" href="enterprise-employees.html">员工账户</a>
+        <a href="enterprise-recharge.html">在线充值</a>
+        <a href="enterprise-batches.html">充值批次</a>
+        <a href="enterprise-refunds.html">企业余额退款</a>
+        <a href="enterprise-receipts.html">企业收据</a>
+      </nav>
+    </aside>
+
+    <main class="admin-content">
+      <div class="admin-header">
+        <div><h1>员工账户</h1><p>查询员工企业余额、累计充值与累计消费</p></div>
+        <a href="enterprise-recharge.html">发起在线充值</a>
+      </div>
+
+      <div class="filter-bar">
+        <input id="keyword" type="search" placeholder="搜索员工姓名或手机号" aria-label="搜索员工">
+        <select id="statusFilter" aria-label="账户状态">
+          <option value="">全部状态</option>
+          <option value="active">正常</option>
+          <option value="inactive">停用</option>
+        </select>
+      </div>
+
+      <section class="admin-table">
+        <table>
+          <thead><tr><th>员工</th><th>手机号</th><th>账户状态</th><th>企业余额</th><th>累计充值</th><th>累计消费</th><th>最近充值时间</th></tr></thead>
+          <tbody id="employeeRows"></tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const enterpriseId = 'E001';
+      const parkState = window.parkState;
+      const state = parkState.state;
+      const enterprise = parkState.selectors.getEnterpriseById(enterpriseId);
+      const keyword = document.getElementById('keyword');
+      const statusFilter = document.getElementById('statusFilter');
+
+      function money(value) { return '¥' + Number(value || 0).toFixed(2); }
+
+      function getEmployeeRows() {
+        return (enterprise ? enterprise.employeeUserIds : []).map(function (userId) {
+          const user = parkState.selectors.getUserById(userId);
+          const account = parkState.selectors.getAccountByUser(userId);
+          const balance = parkState.selectors.getEnterpriseBalance(userId, enterpriseId);
+          const items = state.rechargeBatchItems.filter(function (item) {
+            const batch = state.rechargeBatches.find(function (candidate) { return candidate.id === item.batchId; });
+            return item.userId === userId && item.postingStatus === 'posted' && batch && batch.enterpriseId === enterpriseId;
+          });
+          const latest = items.slice().sort(function (a, b) {
+            return String(b.postedAt || '').localeCompare(String(a.postedAt || ''));
+          })[0];
+          return {
+            user: user,
+            account: account,
+            balance: balance,
+            totalRecharge: items.reduce(function (sum, item) { return sum + item.amount; }, 0),
+            latestRecharge: latest ? latest.postedAt : '-'
+          };
+        }).filter(function (row) { return row.user && row.account && row.balance; });
+      }
+
+      function render() {
+        const search = keyword.value.trim().toLowerCase();
+        const status = statusFilter.value;
+        const rows = getEmployeeRows().filter(function (row) {
+          const matchesSearch = !search || row.user.name.toLowerCase().includes(search) || row.user.phone.includes(search);
+          const matchesStatus = !status || row.account.status === status;
+          return matchesSearch && matchesStatus;
+        });
+        document.getElementById('employeeRows').innerHTML = rows.length ? rows.map(function (row) {
+          return '<tr><td class="employee-name">' + row.user.name + '</td><td>' + row.user.phone + '</td><td class="status-active">' + (row.account.status === 'active' ? '正常' : '停用') + '</td><td>' + money(row.balance.available) + '</td><td>' + money(row.totalRecharge) + '</td><td>' + money(row.balance.consumed) + '</td><td class="muted">' + row.latestRecharge + '</td></tr>';
+        }).join('') : '<tr><td colspan="7" class="muted">没有符合条件的员工账户</td></tr>';
+      }
+
+      keyword.addEventListener('input', render);
+      statusFilter.addEventListener('change', render);
+      render();
+    })();
+  </script>
+</body>
+</html>

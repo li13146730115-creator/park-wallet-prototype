@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业余额退款 - 园区储值</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .refund-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 18px; }
+    .panel { background: var(--card-bg); border-radius: 12px; padding: 18px; box-shadow: var(--shadow-card); }
+    .panel h2 { margin: 0 0 6px; font-size: 17px; }
+    .panel-intro { margin: 0 0 16px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .source-list { display: grid; gap: 10px; }
+    .source-row { display: grid; grid-template-columns: auto 1fr 135px; align-items: center; gap: 12px; padding: 13px; border: 1px solid var(--border); border-radius: 10px; }
+    .source-row strong, .source-row small { display: block; }
+    .source-row small { margin-top: 4px; color: var(--muted); line-height: 1.5; }
+    .amount-input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+    .summary { display: grid; gap: 10px; margin: 14px 0; }
+    .summary-item { padding-bottom: 10px; border-bottom: 1px solid var(--divider); font-size: 13px; }
+    .summary-item div { display: flex; justify-content: space-between; gap: 12px; }
+    .summary-item small { display: block; margin-top: 5px; color: var(--muted); }
+    .total { display: flex; justify-content: space-between; padding: 14px 0; font-weight: 700; }
+    .notice { min-height: 42px; margin-top: 12px; padding: 11px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+    .notice:empty { display: none; }
+    .notice.success { color: #177444; background: var(--success-bg); }
+    .notice.error { color: #b42325; background: var(--error-bg); }
+    .empty { padding: 28px 8px; color: var(--muted); text-align: center; font-size: 13px; }
+    .btn { border-radius: 9px; }
+    .btn:disabled { cursor: not-allowed; opacity: .5; box-shadow: none; }
+    @media (max-width: 980px) { .refund-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 580px) { .source-row { grid-template-columns: auto 1fr; } .amount-input { grid-column: 2; } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 企业管理</div>
+      <nav>
+        <a href="enterprise-overview.html">资金概览</a>
+        <a href="enterprise-employees.html">员工账户</a>
+        <a href="enterprise-recharge.html">在线充值</a>
+        <a href="enterprise-batches.html">充值批次</a>
+        <a class="active" href="enterprise-refunds.html">企业余额退款</a>
+        <a href="enterprise-receipts.html">企业收据</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header">
+        <div><h1>企业余额退款</h1><p>仅企业管理员 U003 可将员工未消费企业余额按原充值来源申请退回</p></div>
+        <a href="enterprise-receipts.html">查看退款凭据</a>
+      </div>
+      <div class="refund-grid">
+        <section class="panel">
+          <h2>选择未消费企业余额</h2>
+          <p class="panel-intro">仅展示已成功入账、仍有可退额度且员工当前企业余额充足的原充值批次明细。</p>
+          <div class="source-list" id="sourceList"></div>
+        </section>
+        <section class="panel">
+          <h2>退款申请</h2>
+          <p class="panel-intro">系统依据原充值批次自动判断退款去向：在线支付原路退回，线下充值退至企业付款账户。</p>
+          <div class="summary" id="refundSummary"></div>
+          <div class="total"><span>本次申请金额</span><span id="refundTotal">¥0.00</span></div>
+          <button class="btn btn-primary btn-block" id="refundButton" type="button" disabled>提交退款申请</button>
+          <div class="notice" id="feedback" role="status" aria-live="polite"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const enterpriseId = 'E001';
+      const adminUserId = 'U003';
+      const parkState = window.parkState;
+      const state = parkState.state;
+      const sourceList = document.getElementById('sourceList');
+      const refundSummary = document.getElementById('refundSummary');
+      const refundTotal = document.getElementById('refundTotal');
+      const refundButton = document.getElementById('refundButton');
+      const feedback = document.getElementById('feedback');
+      const rows = [];
+
+      function money(value) { return '¥' + Number(value || 0).toFixed(2); }
+      function uniqueId(prefix) { return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9); }
+      function clearNode(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+      function setFeedback(message, kind) { feedback.textContent = message; feedback.className = 'notice ' + kind; }
+      function destinationText(method) { return method === 'online' ? '原支付账户' : '企业付款账户'; }
+      function refundedAmount(batchId, userId) {
+        return state.refundRequests.reduce(function (sum, request) {
+          if (request.type !== 'enterprise_balance' || request.enterpriseId !== enterpriseId || !Array.isArray(request.items)) return sum;
+          return sum + request.items.reduce(function (itemSum, item) {
+            return item.rechargeBatchId === batchId && item.userId === userId ? itemSum + item.amount : itemSum;
+          }, 0);
+        }, 0);
+      }
+
+      const sources = state.rechargeBatchItems.map(function (item) {
+        const batch = state.rechargeBatches.find(function (candidate) { return candidate.id === item.batchId; });
+        if (!batch || batch.enterpriseId !== enterpriseId || batch.postingStatus !== 'succeeded' || item.postingStatus !== 'succeeded') return null;
+        const user = parkState.selectors.getUserById(item.userId);
+        const balance = parkState.selectors.getEnterpriseBalance(item.userId, enterpriseId);
+        const remainingSource = Math.max(0, item.amount - refundedAmount(batch.id, item.userId));
+        const refundable = Math.min(remainingSource, balance ? balance.available : 0);
+        return user && refundable > 0 ? { item: item, batch: batch, user: user, refundable: refundable } : null;
+      }).filter(Boolean);
+
+      function selectedItems() {
+        return rows.filter(function (row) { return row.checkbox.checked; }).map(function (row) {
+          return { userId: row.source.user.id, rechargeBatchId: row.source.batch.id, amount: Number(row.amount.value) };
+        });
+      }
+
+      function renderSummary() {
+        clearNode(refundSummary);
+        const selectedRows = rows.filter(function (row) { return row.checkbox.checked; });
+        let total = 0;
+        if (!selectedRows.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = '请选择可退款的原充值批次明细';
+          refundSummary.appendChild(empty);
+        } else {
+          selectedRows.forEach(function (row) {
+            const amount = Number(row.amount.value);
+            if (Number.isFinite(amount) && amount > 0) total += amount;
+            const item = document.createElement('div');
+            item.className = 'summary-item';
+            const line = document.createElement('div');
+            const label = document.createElement('span');
+            label.textContent = row.source.user.name;
+            const value = document.createElement('strong');
+            value.textContent = Number.isFinite(amount) && amount > 0 ? money(amount) : '待填写';
+            line.appendChild(label);
+            line.appendChild(value);
+            const meta = document.createElement('small');
+            meta.textContent = '原充值批次 ' + row.source.batch.id + ' · 退款去向：' + destinationText(row.source.batch.method);
+            item.appendChild(line);
+            item.appendChild(meta);
+            refundSummary.appendChild(item);
+          });
+        }
+        refundTotal.textContent = money(total);
+        const items = selectedItems();
+        refundButton.disabled = !items.length || items.some(function (item, index) {
+          const selectedRow = rows.filter(function (row) { return row.checkbox.checked; })[index];
+          return !Number.isFinite(item.amount) || item.amount <= 0 || Math.round(item.amount * 100) !== item.amount * 100 || item.amount > selectedRow.source.refundable;
+        });
+      }
+
+      if (!sources.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '暂无可退款明细。请先完成企业充值并确保员工仍有未消费企业余额。';
+        sourceList.appendChild(empty);
+      } else {
+        sources.forEach(function (source) {
+          const label = document.createElement('label');
+          label.className = 'source-row';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.setAttribute('aria-label', '选择' + source.user.name + '的退款明细');
+          const copy = document.createElement('span');
+          const name = document.createElement('strong');
+          name.textContent = source.user.name + ' · 可退 ' + money(source.refundable);
+          const meta = document.createElement('small');
+          meta.textContent = '原充值批次 ' + source.batch.id + ' · 退款去向：' + destinationText(source.batch.method);
+          copy.appendChild(name);
+          copy.appendChild(meta);
+          const amount = document.createElement('input');
+          amount.className = 'amount-input';
+          amount.type = 'number';
+          amount.min = '0.01';
+          amount.max = String(source.refundable);
+          amount.step = '0.01';
+          amount.placeholder = '退款金额';
+          amount.disabled = true;
+          amount.setAttribute('aria-label', source.user.name + '退款金额');
+          label.appendChild(checkbox);
+          label.appendChild(copy);
+          label.appendChild(amount);
+          sourceList.appendChild(label);
+          rows.push({ source: source, checkbox: checkbox, amount: amount });
+          checkbox.addEventListener('change', function () {
+            amount.disabled = !checkbox.checked;
+            if (!checkbox.checked) amount.value = '';
+            renderSummary();
+          });
+          amount.addEventListener('input', renderSummary);
+        });
+      }
+
+      refundButton.addEventListener('click', function () {
+        const enterprise = parkState.selectors.getEnterpriseById(enterpriseId);
+        if (!enterprise || !enterprise.adminUserIds.includes(adminUserId)) {
+          setFeedback('当前用户不是企业管理员，不能发起退款。', 'error');
+          return;
+        }
+        const items = selectedItems();
+        refundButton.disabled = true;
+        const response = parkState.actions.applyEnterpriseRefund({
+          enterpriseId: enterpriseId,
+          adminUserId: adminUserId,
+          requestId: uniqueId('RF-WEB'),
+          items: items
+        });
+        if (!response.ok) {
+          setFeedback('退款申请失败：' + response.code + '。请核对可退余额和原充值批次。', 'error');
+          renderSummary();
+          return;
+        }
+        const destination = response.data.refundDestination === 'original_payer' ? '原支付账户' : response.data.refundDestination === 'enterprise_payer_account' ? '企业付款账户' : '按原渠道分别退回';
+        setFeedback('退款申请 ' + response.data.id + ' 已提交，退款去向：' + destination + '。', 'success');
+        rows.forEach(function (row) { row.checkbox.checked = false; row.amount.value = ''; row.amount.disabled = true; });
+        renderSummary();
+      });
+
+      renderSummary();
+    })();
+  </script>
+</body>
+</html>
