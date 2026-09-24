@@ -1283,6 +1283,21 @@ test('商户首页近期收款按真实订单日期和退款状态渲染', () =>
   assertEqual(Number(nodes.get('hero-count').textContent), expectedRefunded.length, '已退款筛选应读取 refundStatus');
 });
 
+test('注销申请状态一律展示中文而非英文枚举', () => {
+  const { nodes, parkState } = renderDemoPage('userRefund');
+  const own = parkState.state.refundRequests.filter(row => row.type === 'personal_balance' && row.userId === 'U001');
+  assert(own.length > 0 && own.every(row => row.status === 'pending'), '种子应包含 U001 个人注销单且状态为 pending');
+  const cards = nodes.get('request-list').children.filter(item => item.className === 'request-card');
+  assert(cards.length === own.length, '列表卡片数应等于个人注销单数');
+  cards.forEach(card => {
+    const statusText = card.children[0].children[1].textContent;
+    assert(statusText === '待审核', '注销状态应展示中文“待审核”，实际：' + statusText);
+    const progressRow = card.children.find(row => row.children.length === 2 && row.children[0].textContent === '进度');
+    const progressText = progressRow.children[1].textContent;
+    assert(progressText === '待审核', '进度行应展示中文“待审核”，实际：' + progressText);
+  });
+});
+
 console.log('Results:');
 results.forEach(result => {
   console.log('  ' + result.status + ': ' + result.name);

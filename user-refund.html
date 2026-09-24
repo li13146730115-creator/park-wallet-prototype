@@ -92,6 +92,7 @@
       'use strict';
       const owner = { parkId: 'park-001', userId: 'U001' };
       const statusMap = {
+        pending: '待审核',
         pending_review: '待审核',
         reviewing: '审核中',
         rejected: '已驳回',
@@ -99,7 +100,7 @@
         completed: '已完成',
         manual_processing: '人工处理中'
       };
-      const activeStatuses = ['pending_review', 'reviewing', 'arrived', 'manual_processing'];
+      const activeStatuses = ['pending', 'pending_review', 'reviewing', 'arrived', 'manual_processing'];
       const els = {
         pageTitle: document.getElementById('page-title'),
         listView: document.getElementById('refund-list-view'),
