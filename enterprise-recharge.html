@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业在线充值 - 园区储值</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .recharge-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 18px; }
+    .panel { background: var(--card-bg); border-radius: 12px; padding: 18px; box-shadow: var(--shadow-card); }
+    .panel h2 { margin: 0 0 6px; font-size: 17px; }
+    .panel-intro { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+    .step-strip { display: flex; gap: 8px; margin-bottom: 18px; }
+    .step { flex: 1; padding: 10px 12px; border-radius: 10px; background: #edf3fb; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .step.active { color: var(--info); background: var(--info-bg); }
+    .employee-list { display: grid; gap: 10px; }
+    .employee-row { display: grid; grid-template-columns: auto 1fr 150px; align-items: center; gap: 12px; padding: 13px; border: 1px solid var(--border); border-radius: 10px; }
+    .employee-row strong, .employee-row small { display: block; }
+    .employee-row small { margin-top: 3px; color: var(--muted); }
+    .amount-input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+    .summary-list { display: grid; gap: 10px; margin: 14px 0; }
+    .summary-item { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); font-size: 13px; }
+    .total { display: flex; justify-content: space-between; padding: 14px 0; font-weight: 700; }
+    .notice { min-height: 42px; margin-top: 12px; padding: 11px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+    .notice:empty { display: none; }
+    .notice.success { color: #177444; background: var(--success-bg); }
+    .notice.error { color: #b42325; background: var(--error-bg); }
+    .empty { padding: 24px 8px; color: var(--muted); text-align: center; font-size: 13px; }
+    .action-row { display: flex; gap: 10px; }
+    .action-row .btn { border-radius: 9px; }
+    .btn:disabled { cursor: not-allowed; opacity: .5; box-shadow: none; }
+    @media (max-width: 980px) { .recharge-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) { .employee-row { grid-template-columns: auto 1fr; } .amount-input { grid-column: 2; } .step-strip { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="brand">海智园区 · 企业管理</div>
+      <nav>
+        <a href="enterprise-overview.html">资金概览</a>
+        <a href="enterprise-employees.html">员工账户</a>
+        <a class="active" href="enterprise-recharge.html">在线充值</a>
+        <a href="enterprise-batches.html">充值批次</a>
+        <a href="enterprise-refunds.html">企业余额退款</a>
+        <a href="enterprise-receipts.html">企业收据</a>
+      </nav>
+    </aside>
+    <main class="admin-content">
+      <div class="admin-header">
+        <div><h1>企业批量在线充值</h1><p>选择员工、核对金额，并通过在线支付完成整批入账</p></div>
+        <a href="enterprise-batches.html">查看充值批次</a>
+      </div>
+      <div class="step-strip" aria-label="充值步骤">
+        <div class="step active">1. 选择员工</div>
+        <div class="step">2. 核对充值清单</div>
+        <div class="step">3. 在线支付</div>
+      </div>
+      <div class="recharge-grid">
+        <section class="panel">
+          <h2>选择员工</h2>
+          <p class="panel-intro">勾选本次批量充值员工，并为每位员工录入充值金额。</p>
+          <div class="employee-list" id="employeeList"></div>
+        </section>
+        <section class="panel">
+          <h2>核对充值清单</h2>
+          <p class="panel-intro">支付成功后，款项将一次性入账至员工企业余额。</p>
+          <div class="summary-list" id="summaryList"></div>
+          <div class="total"><span>批量充值合计</span><span id="totalAmount">¥0.00</span></div>
+          <div class="action-row">
+            <button class="btn btn-primary btn-block" id="payButton" type="button" disabled>确认并在线支付</button>
+          </div>
+          <div class="notice" id="feedback" role="status" aria-live="polite"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="shared-state.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      const enterpriseId = 'E001';
+      const parkState = window.parkState;
+      const enterprise = parkState.selectors.getEnterpriseById(enterpriseId);
+      const employeeList = document.getElementById('employeeList');
+      const summaryList = document.getElementById('summaryList');
+      const totalAmount = document.getElementById('totalAmount');
+      const payButton = document.getElementById('payButton');
+      const feedback = document.getElementById('feedback');
+      const rows = [];
+
+      function money(value) { return '¥' + Number(value || 0).toFixed(2); }
+      function uniqueId(prefix) { return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 9); }
+      function setFeedback(message, kind) { feedback.textContent = message; feedback.className = 'notice ' + kind; }
+      function clearNode(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+      function selectedItems() {
+        return rows.filter(function (row) { return row.checkbox.checked; }).map(function (row) {
+          return { userId: row.user.id, amount: Number(row.amount.value) };
+        });
+      }
+
+      function renderSummary() {
+        clearNode(summaryList);
+        const selected = rows.filter(function (row) { return row.checkbox.checked; });
+        let total = 0;
+        if (!selected.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = '请先从左侧选择员工';
+          summaryList.appendChild(empty);
+        } else {
+          selected.forEach(function (row) {
+            const amount = Number(row.amount.value);
+            if (Number.isFinite(amount) && amount > 0) total += amount;
+            const item = document.createElement('div');
+            item.className = 'summary-item';
+            const name = document.createElement('span');
+            name.textContent = row.user.name;
+            const value = document.createElement('strong');
+            value.textContent = Number.isFinite(amount) && amount > 0 ? money(amount) : '待填写';
+            item.appendChild(name);
+            item.appendChild(value);
+            summaryList.appendChild(item);
+          });
+        }
+        totalAmount.textContent = money(total);
+        const items = selectedItems();
+        payButton.disabled = !items.length || items.some(function (item) {
+          return !Number.isFinite(item.amount) || item.amount <= 0 || Math.round(item.amount * 100) !== item.amount * 100;
+        });
+      }
+
+      if (!enterprise) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '未找到企业信息，无法发起充值。';
+        employeeList.appendChild(empty);
+      } else {
+        enterprise.employeeUserIds.forEach(function (userId) {
+          const user = parkState.selectors.getUserById(userId);
+          const account = parkState.selectors.getAccountByUser(userId);
+          if (!user || !account || account.status !== 'active') return;
+          const row = document.createElement('label');
+          row.className = 'employee-row';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.setAttribute('aria-label', '选择' + user.name);
+          const copy = document.createElement('span');
+          const name = document.createElement('strong');
+          name.textContent = user.name;
+          const phone = document.createElement('small');
+          phone.textContent = user.phone;
+          copy.appendChild(name);
+          copy.appendChild(phone);
+          const amount = document.createElement('input');
+          amount.className = 'amount-input';
+          amount.type = 'number';
+          amount.min = '0.01';
+          amount.step = '0.01';
+          amount.placeholder = '充值金额';
+          amount.disabled = true;
+          amount.setAttribute('aria-label', user.name + '充值金额');
+          row.appendChild(checkbox);
+          row.appendChild(copy);
+          row.appendChild(amount);
+          employeeList.appendChild(row);
+          rows.push({ user: user, checkbox: checkbox, amount: amount });
+          checkbox.addEventListener('change', function () {
+            amount.disabled = !checkbox.checked;
+            if (!checkbox.checked) amount.value = '';
+            renderSummary();
+          });
+          amount.addEventListener('input', renderSummary);
+        });
+      }
+
+      if (!rows.length && enterprise) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = '暂无可充值的正常员工账户。';
+        employeeList.appendChild(empty);
+      }
+
+      payButton.addEventListener('click', function () {
+        feedback.textContent = '';
+        const items = selectedItems();
+        if (!items.length || items.some(function (item) { return !Number.isFinite(item.amount) || item.amount <= 0; })) {
+          setFeedback('请选择员工并填写大于 0 的充值金额。', 'error');
+          return;
+        }
+        payButton.disabled = true;
+        const requestId = uniqueId('ER-WEB');
+        const created = parkState.actions.createEnterpriseRecharge({
+          enterpriseId: 'E001', rechargeParkId: 'park-001', method: 'online', requestId: requestId, items: items
+        });
+        if (!created.ok) {
+          setFeedback('充值清单创建失败：' + created.code + '。请核对员工和金额后重试。', 'error');
+          renderSummary();
+          return;
+        }
+        const paymentReference = uniqueId('PAY-WEB');
+        const confirmed = parkState.actions.confirmEnterpriseOnlinePayment(created.data.id, paymentReference);
+        if (!confirmed.ok) {
+          setFeedback('在线支付确认失败：' + confirmed.code + '。批次已保留，请稍后重试。', 'error');
+          renderSummary();
+          return;
+        }
+        setFeedback('在线支付成功，批次 ' + created.data.id + ' 已完成入账。', 'success');
+        rows.forEach(function (row) { row.checkbox.checked = false; row.amount.value = ''; row.amount.disabled = true; });
+        renderSummary();
+      });
+
+      renderSummary();
+    })();
+  </script>
+</body>
+</html>

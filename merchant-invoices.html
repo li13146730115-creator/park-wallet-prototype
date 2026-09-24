@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>消费发票</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content{padding:0 var(--page-padding) 24px}.notice{margin-bottom:14px;padding:12px 14px;border-radius:var(--radius-small);background:var(--info-bg);color:var(--muted);font-size:12px;line-height:1.6}.filter-chips{display:flex;gap:8px;margin-bottom:14px}.filter-chips button{padding:8px 14px;border:0;border-radius:999px;background:#fff;color:var(--muted)}.filter-chips button.active{background:var(--info-bg);color:var(--info);font-weight:700}.invoice-list{display:grid;gap:12px}.invoice-card{padding:16px;background:#fff;border-radius:var(--radius-card);box-shadow:var(--shadow-card)}.invoice-head,.invoice-row{display:flex;justify-content:space-between;gap:16px}.invoice-head{align-items:center;padding-bottom:11px;border-bottom:1px solid var(--divider)}.invoice-head b:last-child{font-size:19px}.invoice-row{padding-top:10px;font-size:13px}.invoice-row span{color:var(--muted)}.invoice-row b{text-align:right;word-break:break-all}.empty{padding:50px 18px;background:#fff;border-radius:var(--radius-card);color:var(--muted);text-align:center}.empty a{display:inline-block;margin-top:14px;color:var(--info);text-decoration:none;font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="mobile-page"><div class="phone-shell"><div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div><div class="app-shell">
+    <header class="topbar"><a href="merchant-home.html" class="back">‹</a><strong>消费发票</strong><span></span></header>
+    <main class="app-content">
+      <div class="notice">查看商户收到的消费发票申请。发票状态由票据系统同步，本页不直接改写业务状态。</div>
+      <div class="filter-chips" id="filters"><button class="active" data-status="all">全部</button><button data-status="pending">待处理</button><button data-status="issued">已开票</button></div>
+      <section class="invoice-list" id="invoice-list"></section>
+    </main><div class="home-bar"></div>
+  </div></div></div>
+  <script src="shared-state.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    const MERCHANT_ID='M002',state=parkState.state,list=document.getElementById('invoice-list');let selected='all';
+    function money(v){return '¥'+formatMoney(Number(v)||0)}
+    function name(items,id){return (items.find(function(item){return item.id===id})||{}).name||id||'-'}
+    function add(parent,tag,text,className){const node=document.createElement(tag);if(className)node.className=className;node.textContent=text;parent.appendChild(node);return node}
+    function row(card,label,value){const wrap=document.createElement('div');wrap.className='invoice-row';add(wrap,'span',label);add(wrap,'b',value);card.appendChild(wrap)}
+    function statusText(value){return value==='issued'?'已开票':value==='rejected'?'已驳回':'待处理'}
+    function records(){return (state.invoiceRecords||[]).filter(function(item){return item.type==='consume_invoice'&&item.merchantId===MERCHANT_ID&&(selected==='all'||item.status===selected)}).sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt))})}
+    function render(){list.replaceChildren();const data=records();if(!data.length){const empty=add(list,'div','暂无消费发票申请','empty');const link=add(empty,'a','查看消费订单');link.href='merchant-orders.html';return}data.forEach(function(invoice){const card=document.createElement('article');card.className='invoice-card';const head=document.createElement('div');head.className='invoice-head';add(head,'b',statusText(invoice.status));add(head,'b',money(invoice.amount));card.appendChild(head);row(card,'发票编号',invoice.id);row(card,'订单编号',invoice.sourceId);row(card,'抬头',invoice.titleSnapshot&&invoice.titleSnapshot.name||'-');row(card,'税号',invoice.titleSnapshot&&invoice.titleSnapshot.taxId||'-');row(card,'消费园区',name(state.parks,invoice.consumeParkId));row(card,'申请时间',invoice.createdAt||'-');list.appendChild(card)})}
+    document.getElementById('filters').addEventListener('click',function(event){if(event.target.tagName!=='BUTTON')return;selected=event.target.dataset.status;Array.from(this.children).forEach(function(button){button.classList.toggle('active',button===event.target)});render()});render();
+  })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

@@ -45,9 +45,9 @@
 
       <div class="admin-table">
         <div class="quick-filters" id="quick-filters">
-          <button class="active" data-range="today">今日</button>
+          <button data-range="today">今日</button>
           <button data-range="yesterday">昨日</button>
-          <button data-range="7d">近 7 天</button>
+          <button class="active" data-range="7d">近 7 天</button>
           <button data-range="custom">自定义时间</button>
         </div>
         <div class="filters" id="custom-range" style="display:none;">
@@ -82,8 +82,8 @@
       'use strict';
       const state = window.parkState.state;
       const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
-      const orders = (state.orders || []).filter(function (item) { return item.parkId === parkId; });
-      const parkUsers = (state.users || []).filter(function (item) { return item.parkId === parkId; });
+      const orders = (state.orders || []).filter(function (item) { return item.consumeParkId === parkId; });
+      const parkUsers = (state.users || []).filter(function (item) { return item.homeParkId === parkId; });
       const merchants = (state.merchants || []).filter(function (item) { return item.parkId === parkId; });
 
       function pad(value) { return String(value).padStart(2, '0'); }
@@ -92,7 +92,7 @@
       const YESTERDAY = dateString(new Date(Date.now() - 86400000));
       const SEVEN_DAYS_AGO = dateString(new Date(Date.now() - 6 * 86400000));
 
-      const filter = { range: 'today', start: '', end: '', status: '', keyword: '' };
+      const filter = { range: '7d', start: '', end: '', status: '', keyword: '' };
       const els = {
         quickFilters: document.getElementById('quick-filters'),
         customRange: document.getElementById('custom-range'),
@@ -115,18 +115,18 @@
         return found ? found.name : (order.merchantName || order.merchant || '-');
       }
       function displayStatus(order) {
-        if (order.status === 'paid') return ['交易成功', 'tag-success'];
-        if (order.status === 'refunding') return ['退款中', 'tag-info'];
-        if (order.status === 'refunded') return ['退款', 'tag-info'];
+        if (order.paymentStatus === 'paid' && order.refundStatus === 'none') return ['交易成功', 'tag-success'];
+        if (order.refundStatus === 'refunding') return ['退款中', 'tag-info'];
+        if (order.refundStatus === 'refunded') return ['退款', 'tag-info'];
         return ['支付失败', 'tag-error'];
       }
       function inRange(order) {
-        const d = datePart(order.time);
+        const d = datePart(order.createdAt);
         if (filter.range === 'today') return d === TODAY;
         if (filter.range === 'yesterday') return d === YESTERDAY;
         if (filter.range === '7d') return d >= SEVEN_DAYS_AGO && d <= TODAY;
         if (filter.range === 'custom') {
-          const date = parseDate(order.time);
+          const date = parseDate(order.createdAt);
           if (!filter.start || !filter.end) return true;
           return date >= new Date(filter.start + 'T00:00:00') && date <= new Date(filter.end + 'T23:59:59');
         }
@@ -141,7 +141,7 @@
       }
       function matchesStatus(order) {
         if (!filter.status) return true;
-        return order.status === filter.status;
+        return filter.status === 'paid' ? order.paymentStatus === 'paid' && order.refundStatus === 'none' : order.refundStatus === filter.status;
       }
       function currentRows() {
         return orders.filter(o => inRange(o) && matchesSearch(o) && matchesStatus(o)).sort((a, b) => String(b.time).localeCompare(String(a.time)));
@@ -164,7 +164,7 @@
       }
       function renderMetrics() {
         const rows = currentRows();
-        const refundRows = rows.filter(o => o.status === 'refunded' || o.status === 'refunding');
+        const refundRows = rows.filter(o => o.refundStatus === 'refunded' || o.refundStatus === 'refunding');
         document.getElementById('metric-count').textContent = rows.length;
         document.getElementById('metric-amount').textContent = money(rows.reduce((sum, o) => sum + o.amount, 0));
         document.getElementById('metric-refund-count').textContent = refundRows.length;
@@ -185,7 +185,7 @@
           appendCell(tr, merchantLabel(order));
           appendCell(tr, money(order.amount));
           appendCell(tr, status[0], 'tag ' + status[1]);
-          appendCell(tr, order.time || '-');
+          appendCell(tr, order.createdAt || '-');
           appendCell(tr, order.refundDeadline || '-');
           appendCell(tr, order.remark || '-');
           els.table.appendChild(tr);
@@ -212,7 +212,7 @@
         renderTable();
       });
       document.getElementById('reset-button').addEventListener('click', function () {
-        filter.range = 'today'; filter.start = ''; filter.end = ''; filter.keyword = ''; filter.status = '';
+        filter.range = '7d'; filter.start = ''; filter.end = ''; filter.keyword = ''; filter.status = '';
         Array.from(els.quickFilters.children).forEach(b => b.classList.toggle('active', b.dataset.range === 'today'));
         els.customRange.style.display = 'none';
         els.start.value = ''; els.end.value = ''; els.keyword.value = ''; els.status.value = '';

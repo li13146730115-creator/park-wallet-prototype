@@ -45,6 +45,7 @@
     }
 
     .nav-group.user h2 .icon { background: #eaf9ef; }
+    .nav-group.enterprise h2 .icon { background: #f3ecff; }
     .nav-group.merchant h2 .icon { background: #fff6e5; }
     .nav-group.admin h2 .icon { background: #e9f5ff; }
 
@@ -77,7 +78,7 @@
     .landing-hero h1 { margin: 0 0 6px; font-size: 22px; font-weight: 700; }
     .landing-hero p { margin: 0; font-size: 13px; opacity: 0.88; }
 
-    .entry-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .entry-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 
     .entry-card {
       background: var(--card-bg);
@@ -163,13 +164,27 @@
       <div class="landing-brand">园区储值原型<small>快捷操作入口</small></div>
 
       <section class="nav-group user">
-        <h2><span class="icon">U</span>用户移动端</h2>
+        <h2><span class="icon">U</span>个人 / 员工端</h2>
         <nav>
           <a href="user-home.html">园区码服务</a>
           <a href="user-wallet.html">钱包首页</a>
-          <a href="user-recharge.html">余额充值</a>
-          <a href="user-payment-code.html">付款码</a>
-          <a href="user-refund.html">注销申请</a>
+          <a href="user-recharge.html">个人充值</a>
+          <a href="user-payment-code.html">统一付款码</a>
+          <a href="user-orders.html">消费订单</a>
+          <a href="user-invoices.html">票据中心</a>
+          <a href="user-refund.html">个人余额退款</a>
+        </nav>
+      </section>
+
+      <section class="nav-group enterprise">
+        <h2><span class="icon">E</span>企业管理员后台</h2>
+        <nav>
+          <a href="enterprise-overview.html">资金概览</a>
+          <a href="enterprise-employees.html">员工账户</a>
+          <a href="enterprise-recharge.html">在线充值</a>
+          <a href="enterprise-batches.html">充值批次</a>
+          <a href="enterprise-refunds.html">企业余额退款</a>
+          <a href="enterprise-receipts.html">企业收据</a>
         </nav>
       </section>
 
@@ -178,8 +193,9 @@
         <nav>
           <a href="merchant-home.html">商户首页</a>
           <a href="merchant-scan.html">扫码收款</a>
-          <a href="merchant-orders.html">订单记录</a>
-          <a href="merchant-settlements.html">分账管理</a>
+          <a href="merchant-orders.html">消费订单</a>
+          <a href="merchant-invoices.html">消费发票</a>
+          <a href="merchant-settlements.html">结算记录</a>
         </nav>
       </section>
 
@@ -187,9 +203,12 @@
         <h2><span class="icon">A</span>园区运营后台</h2>
         <nav>
           <a href="admin-accounts.html">账户管理</a>
-          <a href="admin-orders.html">订单管理</a>
+          <a href="admin-enterprises.html">企业管理</a>
+          <a href="admin-enterprise-recharge.html">代企业充值</a>
+          <a href="admin-recharge-batches.html">充值批次</a>
+          <a href="admin-orders.html">消费订单</a>
           <a href="admin-refunds.html">退款审核</a>
-          <a href="admin-settlements.html">分账管理</a>
+          <a href="admin-reconciliation.html">结算与对账</a>
           <a href="admin-merchants.html">商户配置</a>
         </nav>
       </section>
@@ -197,14 +216,15 @@
 
     <main class="landing-main">
       <div class="landing-hero">
-        <h1>园区储值一期 MVP 原型</h1>
-        <p>单一余额 · 用户移动端 · 商户移动端 · 园区运营后台</p>
+        <h1>园区储值四端业务原型</h1>
+        <p>个人与企业双余额 · 跨园区消费 · 企业批量充值 · 多方结算对账</p>
       </div>
 
       <div class="entry-cards">
-        <a class="entry-card" href="user-home.html"><b>用户移动端</b><span>园区码、钱包、充值、付款码、注销申请</span></a>
-        <a class="entry-card" href="merchant-home.html"><b>商户移动端</b><span>扫码收款、订单记录、分账管理</span></a>
-        <a class="entry-card" href="admin-accounts.html"><b>园区运营后台</b><span>账户、订单、退款审核、分账、商户配置</span></a>
+        <a class="entry-card" href="user-home.html"><b>个人 / 员工端</b><span>双余额钱包、个人充值、统一付款码、消费订单、票据与退款</span></a>
+        <a class="entry-card" href="enterprise-overview.html"><b>企业管理员后台</b><span>员工账户、在线批量充值、充值批次、企业余额退款与收据</span></a>
+        <a class="entry-card" href="merchant-home.html"><b>商户移动端</b><span>跨园区扫码收款、消费订单、整单退款、消费发票与结算</span></a>
+        <a class="entry-card" href="admin-accounts.html"><b>园区运营后台</b><span>账户、企业、代充值、批次、退款、结算与异常对账</span></a>
       </div>
 
       <div class="actions">
@@ -219,6 +239,7 @@
   <script>
     function resetState() {
       localStorage.removeItem('parkStateV2');
+      localStorage.removeItem('parkStateV2Version');
       window.location.reload();
     }
   </script>

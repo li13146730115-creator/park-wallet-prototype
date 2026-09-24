@@ -3,34 +3,30 @@
 
   const STORAGE_KEY = 'parkStateV2';
   const VERSION_KEY = 'parkStateV2Version';
-  const DATA_VERSION = 'demo-2026-08-07-1';
-  const COLLECTION_KEYS = ['parks', 'users', 'accounts', 'batches', 'transactions', 'orders', 'refundRequests', 'merchants', 'invoiceTitles', 'invoiceRecords', 'pendingSettlements', 'reconciliationRows'];
-  const FORBIDDEN_KEYS = [
-    ['prin', 'cipal'].join(''),
-    ['gi', 'ft'].join(''),
-    ['bo', 'nus'].join(''),
-    ['cam', 'paign'].join(''),
-    ['remaining', 'Gi', 'ft'].join(''),
-    ['remaining', 'Prin', 'cipal'].join('')
+  const DATA_VERSION = 'demo-2026-09-23-1';
+  const COLLECTION_KEYS = [
+    'parks',
+    'enterprises',
+    'users',
+    'accounts',
+    'rechargeBatches',
+    'rechargeBatchItems',
+    'transactions',
+    'orders',
+    'refundRequests',
+    'merchants',
+    'invoiceTitles',
+    'invoiceRecords',
+    'pendingSettlements',
+    'reconciliationRows'
   ];
-  const TRANSACTION_TYPES = ['recharge', 'consume', 'consume_refund', 'balance_refund'];
-  const TRANSACTION_STATUSES = ['success'];
-  const ORDER_STATUSES = ['paid', 'refunding', 'refunded', 'payment_failed'];
-  const BATCH_STATUSES = ['active'];
-  const REFUND_STATUSES = ['pending_review', 'reviewing', 'rejected', 'arrived', 'completed', 'manual_processing'];
-  const SETTLEMENT_STATUSES = ['pending', 'processing', 'success', 'failed'];
-  const RECONCILIATION_TYPES = ['recharge', 'consume', 'consume_refund', 'balance_refund', 'settlement'];
-  const RECONCILIATION_DIFFS = ['consistent', 'amount_mismatch', 'status_mismatch', 'missing', 'duplicate'];
-  const PLATFORM_STATUSES = ['success', 'pending', 'processing', 'paid', 'refunded', 'closed', 'failed'];
-  const CHANNEL_STATUSES = ['success', 'pending', 'processing', 'failed', 'amount_diff', 'none', 'duplicate'];
-  const TOP_LEVEL_KEYS = ['parks', 'users', 'accounts', 'user', 'wallet', 'batches', 'transactions', 'orders', 'refundRequests', 'merchants', 'merchantConfig', 'invoiceTitles', 'invoiceRecords', 'pendingSettlements', 'reconciliationRows'];
+  const TOP_LEVEL_KEYS = COLLECTION_KEYS.concat(['user', 'merchantConfig']);
   const MAX_ID_LENGTH = 64;
   const MAX_TEXT_LENGTH = 120;
-  const MAX_NOTES_LENGTH = 500;
 
   function demoTime(daysAgo, hhmm) {
     const date = new Date(Date.now() - daysAgo * 86400000);
-    const pad = v => String(v).padStart(2, '0');
+    const pad = value => String(value).padStart(2, '0');
     return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + hhmm;
   }
 
@@ -40,115 +36,183 @@
       { id: 'park-002', name: '海创园区' },
       { id: 'park-003', name: '空白园区' }
     ],
+    enterprises: [
+      {
+        id: 'E001',
+        parkId: 'park-001',
+        name: '北京海开智慧园区科技有限公司',
+        adminUserIds: ['U003'],
+        employeeUserIds: ['U001', 'U004'],
+        status: 'active'
+      },
+      {
+        id: 'E002',
+        parkId: 'park-002',
+        name: '北京海创科技服务有限公司',
+        adminUserIds: ['U002'],
+        employeeUserIds: ['U002'],
+        status: 'active'
+      }
+    ],
     users: [
-      { id: 'U001', parkId: 'park-001', name: '张伟', phone: '13800131234', enterpriseName: '北京海开智慧园区科技有限公司' },
-      { id: 'U003', parkId: 'park-001', name: '王强', phone: '13700139012', enterpriseName: '北京海智产业运营有限公司' },
-      { id: 'U004', parkId: 'park-001', name: '赵敏', phone: '13600136012', enterpriseName: '北京海开智慧园区科技有限公司' },
-      { id: 'U002', parkId: 'park-002', name: '李娜', phone: '13900139001', enterpriseName: '北京海创科技服务有限公司' }
+      { id: 'U001', homeParkId: 'park-001', name: '张伟', phone: '13800131234', status: 'active' },
+      { id: 'U003', homeParkId: 'park-001', name: '王强', phone: '13700139012', status: 'active' },
+      { id: 'U004', homeParkId: 'park-001', name: '赵敏', phone: '13600136012', status: 'active' },
+      { id: 'U002', homeParkId: 'park-002', name: '李娜', phone: '13900139001', status: 'active' }
     ],
     accounts: [
-      { id: 'A001', parkId: 'park-001', userId: 'U001', total: 238.00, available: 238.00, frozen: 0.00, consumed: 62.00 },
-      { id: 'A003', parkId: 'park-001', userId: 'U003', total: 120.00, available: 0.00, frozen: 80.00, consumed: 40.00 },
-      { id: 'A004', parkId: 'park-001', userId: 'U004', total: 80.00, available: 0.00, frozen: 75.00, consumed: 5.00 },
-      { id: 'A002', parkId: 'park-002', userId: 'U002', total: 120.00, available: 90.00, frozen: 10.00, consumed: 20.00 }
+      {
+        id: 'A001',
+        userId: 'U001',
+        homeParkId: 'park-001',
+        status: 'active',
+        personal: { available: 80, frozen: 0, consumed: 42 },
+        enterpriseBalances: [
+          { enterpriseId: 'E001', available: 120, frozen: 0, consumed: 88 }
+        ]
+      },
+      {
+        id: 'A003',
+        userId: 'U003',
+        homeParkId: 'park-001',
+        status: 'active',
+        personal: { available: 40, frozen: 0, consumed: 20 },
+        enterpriseBalances: []
+      },
+      {
+        id: 'A004',
+        userId: 'U004',
+        homeParkId: 'park-001',
+        status: 'active',
+        personal: { available: 30, frozen: 0, consumed: 5 },
+        enterpriseBalances: [
+          { enterpriseId: 'E001', available: 75, frozen: 0, consumed: 5 }
+        ]
+      },
+      {
+        id: 'A002',
+        userId: 'U002',
+        homeParkId: 'park-002',
+        status: 'active',
+        personal: { available: 90, frozen: 10, consumed: 20 },
+        enterpriseBalances: [
+          { enterpriseId: 'E002', available: 100, frozen: 0, consumed: 20 }
+        ]
+      }
     ],
-    user: { id: 'U001', parkId: 'park-001', name: '张伟', phone: '13800131234', enterpriseName: '北京海开智慧园区科技有限公司' },
-    wallet: { total: 238.00, available: 238.00, frozen: 0.00 },
-    batches: [
-      { id: 'B20260712001', parkId: 'park-001', userId: 'U001', amount: 100.00, remaining: 100.00, createdAt: '2026-07-12 09:18', status: 'active' },
-      { id: 'B20260712002', parkId: 'park-001', userId: 'U001', amount: 200.00, remaining: 138.00, createdAt: '2026-07-13 10:05', status: 'active' },
-      { id: 'B20260714001', parkId: 'park-001', userId: 'U003', amount: 120.00, remaining: 80.00, createdAt: '2026-07-14 09:30', status: 'active' },
-      { id: 'B20260714002', parkId: 'park-001', userId: 'U004', amount: 80.00, remaining: 75.00, createdAt: '2026-07-14 10:20', status: 'active' },
-      { id: 'B20260712003', parkId: 'park-002', userId: 'U002', amount: 120.00, remaining: 100.00, createdAt: '2026-07-13 11:05', status: 'active' }
-    ],
-    transactions: [
-      { id: 'T1001', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '余额充值', amount: 200.00, time: '2026-07-12 09:18', status: 'success', channel: '微信支付' },
-      { id: 'T1002', parkId: 'park-001', userId: 'U001', merchantId: 'M001', type: 'consume', title: '园区食堂消费', amount: -28.00, merchant: '园区食堂', time: '2026-07-14 12:36', status: 'success' },
-      { id: 'T1003', parkId: 'park-001', userId: 'U001', merchantId: 'M002', type: 'consume', title: '海智咖啡 HUB', amount: -18.00, merchant: '海智咖啡 HUB', time: '2026-07-14 14:18', status: 'success' },
-      { id: 'T1004', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '余额充值', amount: 84.00, time: '2026-07-13 10:05', status: 'success', channel: '微信支付' },
-      { id: 'T2001', parkId: 'park-002', userId: 'U002', type: 'recharge', title: '余额充值', amount: 120.00, time: '2026-07-13 11:05', status: 'success', channel: '支付宝' },
-      { id: 'T-DMO-R1', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '余额充值', amount: 100.00, time: demoTime(0, '08:15'), status: 'success', channel: '微信支付' },
-      { id: 'T-DMO-R2', parkId: 'park-001', userId: 'U001', type: 'recharge', title: '余额充值', amount: 200.00, time: demoTime(6, '14:00'), status: 'success', channel: '微信支付' },
-      { id: 'T-DMO-R3', parkId: 'park-001', userId: 'U003', type: 'recharge', title: '余额充值', amount: 120.00, time: demoTime(4, '09:00'), status: 'success', channel: '微信支付' },
-      { id: 'T-DMO-R4', parkId: 'park-001', userId: 'U004', type: 'recharge', title: '余额充值', amount: 80.00, time: demoTime(5, '10:10'), status: 'success', channel: '支付宝' },
-      { id: 'T-DMO-01', parkId: 'park-001', userId: 'U001', merchantId: 'M001', type: 'consume', title: '园区食堂消费', amount: -32.00, merchant: '园区食堂', orderId: 'DMO-YQST-T01', time: demoTime(0, '12:05'), status: 'success' },
-      { id: 'T-DMO-02', parkId: 'park-001', userId: 'U001', merchantId: 'M002', type: 'consume', title: '海智咖啡 HUB 消费', amount: -25.50, merchant: '海智咖啡 HUB', orderId: 'DMO-HZKF-T01', time: demoTime(0, '09:42'), status: 'success' },
-      { id: 'T-DMO-03', parkId: 'park-001', userId: 'U003', merchantId: 'M002', type: 'consume', title: '海智咖啡 HUB 消费', amount: -18.00, merchant: '海智咖啡 HUB', orderId: 'DMO-HZKF-T02', time: demoTime(0, '10:15'), status: 'success' },
-      { id: 'T-DMO-04', parkId: 'park-001', userId: 'U001', merchantId: 'M002', type: 'consume', title: '海智咖啡 HUB 消费', amount: -36.00, merchant: '海智咖啡 HUB', orderId: 'DMO-HZKF-Y01', time: demoTime(1, '15:20'), status: 'success' },
-      { id: 'T-DMO-05', parkId: 'park-001', userId: 'U004', merchantId: 'M001', type: 'consume', title: '园区食堂消费', amount: -24.00, merchant: '园区食堂', orderId: 'DMO-YQST-Y01', time: demoTime(1, '12:30'), status: 'success' },
-      { id: 'T-DMO-06', parkId: 'park-001', userId: 'U001', merchantId: 'M002', type: 'consume', title: '海智咖啡 HUB 消费', amount: -21.00, merchant: '海智咖啡 HUB', orderId: 'DMO-HZKF-Y02', time: demoTime(2, '08:50'), status: 'success' },
-      { id: 'T-DMO-07', parkId: 'park-001', userId: 'U003', merchantId: 'M001', type: 'consume', title: '园区食堂消费', amount: -28.00, merchant: '园区食堂', orderId: 'DMO-YQST-Y02', time: demoTime(3, '12:10'), status: 'success' },
-      { id: 'T-DMO-08', parkId: 'park-001', userId: 'U003', merchantId: 'M001', type: 'consume_refund', title: '园区食堂消费退款', amount: 28.00, merchant: '园区食堂', orderId: 'DMO-YQST-Y02', time: demoTime(2, '09:30'), status: 'success' },
-      { id: 'T-DMO-09', parkId: 'park-002', userId: 'U002', merchantId: 'M201', type: 'consume', title: '海创食堂消费', amount: -22.00, merchant: '海创食堂', orderId: 'DMO-HCST-T01', time: demoTime(0, '12:20'), status: 'success' }
-    ],
-    orders: [
-      { id: 'YQST-2026071412360001', parkId: 'park-001', userId: 'U001', merchant: '园区食堂', merchantId: 'M001', amount: 28.00, time: '2026-07-14 12:36', status: 'paid', refundDeadline: '2026-07-15 23:59' },
-      { id: 'HZKF-2026071414180001', parkId: 'park-001', userId: 'U001', merchant: '海智咖啡 HUB', merchantId: 'M002', amount: 18.00, time: '2026-07-14 14:18', status: 'paid', refundDeadline: '2026-07-15 23:59' },
-      { id: 'YQBLD-2026071509100001', parkId: 'park-001', userId: 'U001', merchant: '园区便利店', merchantId: 'M003', amount: 12.00, time: '2026-07-15 09:10', status: 'payment_failed', refundDeadline: '2026-07-16 23:59' },
-      { id: 'YQST-2026071318200001', parkId: 'park-001', userId: 'U001', merchant: '园区食堂', merchantId: 'M001', amount: 16.00, time: '2026-07-13 18:20', status: 'refunded', refundDeadline: '2026-07-14 23:59' },
-      { id: 'HCST-2026071512100001', parkId: 'park-002', userId: 'U002', merchant: '海创食堂', merchantId: 'M201', amount: 20.00, time: '2026-07-15 12:10', status: 'paid', refundDeadline: '2026-07-16 23:59' },
-      { id: 'DMO-YQST-T01', parkId: 'park-001', userId: 'U001', merchant: '园区食堂', merchantId: 'M001', amount: 32.00, time: demoTime(0, '12:05'), status: 'paid', refundDeadline: demoTime(-1, '23:59') },
-      { id: 'DMO-HZKF-T01', parkId: 'park-001', userId: 'U001', merchant: '海智咖啡 HUB', merchantId: 'M002', amount: 25.50, time: demoTime(0, '09:42'), status: 'paid', refundDeadline: demoTime(-1, '23:59'), remark: '两杯拿铁' },
-      { id: 'DMO-HZKF-T02', parkId: 'park-001', userId: 'U003', merchant: '海智咖啡 HUB', merchantId: 'M002', amount: 18.00, time: demoTime(0, '10:15'), status: 'paid', refundDeadline: demoTime(-1, '23:59') },
-      { id: 'DMO-HZKF-Y01', parkId: 'park-001', userId: 'U001', merchant: '海智咖啡 HUB', merchantId: 'M002', amount: 36.00, time: demoTime(1, '15:20'), status: 'paid', refundDeadline: demoTime(0, '23:59') },
-      { id: 'DMO-YQST-Y01', parkId: 'park-001', userId: 'U004', merchant: '园区食堂', merchantId: 'M001', amount: 24.00, time: demoTime(1, '12:30'), status: 'paid', refundDeadline: demoTime(0, '23:59') },
-      { id: 'DMO-HZKF-Y02', parkId: 'park-001', userId: 'U001', merchant: '海智咖啡 HUB', merchantId: 'M002', amount: 21.00, time: demoTime(2, '08:50'), status: 'refunding', refundDeadline: demoTime(1, '23:59') },
-      { id: 'DMO-YQST-Y02', parkId: 'park-001', userId: 'U003', merchant: '园区食堂', merchantId: 'M001', amount: 28.00, time: demoTime(3, '12:10'), status: 'refunded', refundDeadline: demoTime(2, '23:59') },
-      { id: 'DMO-YQBLD-T01', parkId: 'park-001', userId: 'U001', merchant: '园区便利店', merchantId: 'M003', amount: 15.80, time: demoTime(0, '08:20'), status: 'payment_failed', refundDeadline: demoTime(-1, '23:59') },
-      { id: 'DMO-HCST-T01', parkId: 'park-002', userId: 'U002', merchant: '海创食堂', merchantId: 'M201', amount: 22.00, time: demoTime(0, '12:20'), status: 'paid', refundDeadline: demoTime(-1, '23:59') }
-    ],
-    refundRequests: [
-      { id: 'RR9101', parkId: 'park-001', userId: 'U003', amount: 60.00, frozenAmount: 60.00, batchAllocations: [{ batchId: 'B20260714001', amount: 60.00 }], createdAt: '2026-07-18 10:00', status: 'pending_review', notes: '离职退余额' },
-      { id: 'RR9102', parkId: 'park-001', userId: 'U004', amount: 30.00, frozenAmount: 30.00, batchAllocations: [{ batchId: 'B20260714002', amount: 30.00 }], createdAt: '2026-07-17 15:30', status: 'reviewing', notes: '搬离园区，申请注销' },
-      { id: 'RR9103', parkId: 'park-001', userId: 'U004', amount: 45.00, frozenAmount: 45.00, batchAllocations: [{ batchId: 'B20260714002', amount: 45.00 }], createdAt: '2026-07-16 11:20', status: 'arrived', notes: '退款已原路到账，待确认完成' },
-      { id: 'RR9104', parkId: 'park-001', userId: 'U003', amount: 20.00, frozenAmount: 20.00, batchAllocations: [{ batchId: 'B20260714001', amount: 20.00 }], createdAt: '2026-07-15 14:10', status: 'manual_processing', notes: '渠道退款失败，转人工处理' },
-      { id: 'RR9105', parkId: 'park-001', userId: 'U001', amount: 66.00, frozenAmount: 66.00, batchAllocations: [{ batchId: 'B20260712001', amount: 66.00 }], createdAt: '2026-07-13 09:40', status: 'rejected', notes: '资料不全，已驳回' },
-      { id: 'RR9106', parkId: 'park-001', userId: 'U001', amount: 50.00, frozenAmount: 50.00, batchAllocations: [{ batchId: 'B20260712002', amount: 50.00 }], createdAt: '2026-07-12 16:25', status: 'completed', notes: '退款已完成' }
+    rechargeBatches: [],
+    rechargeBatchItems: [],
+    transactions: [],
+    orders: [],
+    refundRequests: [],
+    merchants: [
+      { id: 'M001', parkId: 'park-001', name: '园区食堂', status: 'active' },
+      { id: 'M002', parkId: 'park-001', name: '海智咖啡 HUB', status: 'active' },
+      { id: 'M003', parkId: 'park-001', name: '园区便利店', status: 'active' },
+      { id: 'M201', parkId: 'park-002', name: '海创食堂', status: 'active' }
     ],
     invoiceTitles: [
-      { id: 'TITLE-DMO-1', parkId: 'park-001', userId: 'U001', name: '北京海开智慧园区科技有限公司', taxId: '91110108MA01C8X2B', address: '北京市海淀区中关村大街 1 号', phone: '010-88886666', bank: '中国工商银行北京中关村支行', bankAccount: '0200048809100012345', isDefault: true, deletedAt: null }
+      {
+        id: 'TITLE-DMO-1',
+        userId: 'U001',
+        name: '北京海开智慧园区科技有限公司',
+        taxId: '91110108MA01C8X2B',
+        address: '北京市海淀区中关村大街 1 号',
+        phone: '010-88886666',
+        bank: '中国工商银行北京中关村支行',
+        bankAccount: '0200048809100012345',
+        isDefault: true,
+        deletedAt: null
+      }
     ],
-    invoiceRecords: [
-      { id: 'INV-DMO-01', parkId: 'park-001', userId: 'U001', transactionId: 'T1004', titleId: 'TITLE-DMO-1', titleSnapshot: { name: '北京海开智慧园区科技有限公司', taxId: '91110108MA01C8X2B' }, amount: 84.00, status: 'issued', createdAt: demoTime(5, '16:00'), requestId: 'REQ-INV-DMO-01' },
-      { id: 'INV-DMO-02', parkId: 'park-001', userId: 'U001', transactionId: 'T-DMO-R2', titleId: 'TITLE-DMO-1', titleSnapshot: { name: '北京海开智慧园区科技有限公司', taxId: '91110108MA01C8X2B' }, amount: 200.00, status: 'pending', createdAt: demoTime(0, '09:00'), requestId: 'REQ-INV-DMO-02' }
-    ],
-    merchants: [
-      { id: 'M001', parkId: 'park-001', name: '园区食堂' },
-      { id: 'M002', parkId: 'park-001', name: '海智咖啡 HUB' },
-      { id: 'M003', parkId: 'park-001', name: '园区便利店' },
-      { id: 'M201', parkId: 'park-002', name: '海创食堂' }
-    ],
-    merchantConfig: {
-      'M001': { name: '园区食堂', ratio: 0.85, cycle: 'T+1', refundWindowHours: 24, prefix: 'YQST' },
-      'M002': { name: '海智咖啡 HUB', ratio: 0.80, cycle: '周结', refundWindowHours: 24, prefix: 'HZKF' },
-      'M003': { name: '园区便利店', ratio: 0.82, cycle: 'T+1', refundWindowHours: 24, prefix: 'YQBLD' },
-      'M201': { name: '海创食堂', ratio: 0.85, cycle: 'T+1', refundWindowHours: 24, prefix: 'HCST' }
-    },
-    pendingSettlements: [
-      { id: 'S3001', parkId: 'park-001', merchantId: 'M001', orderIds: ['YQST-2026071412360001'], total: 28.00, merchantShare: 23.80, parkShare: 4.20, ratio: 0.85, cycle: 'T+1', status: 'pending', paymentReference: null, paymentRecordedAt: null, failReason: null },
-      { id: 'S-DMO-01', parkId: 'park-001', merchantId: 'M002', orderIds: ['DMO-HZKF-Y01'], total: 36.00, merchantShare: 28.80, parkShare: 7.20, ratio: 0.80, cycle: '周结', status: 'success', paymentReference: 'SPAY-20260721-001', paymentRecordedAt: demoTime(1, '18:00'), failReason: null },
-      { id: 'S-DMO-02', parkId: 'park-001', merchantId: 'M001', orderIds: ['DMO-YQST-Y01'], total: 24.00, merchantShare: 20.40, parkShare: 3.60, ratio: 0.85, cycle: 'T+1', status: 'success', paymentReference: 'SPAY-20260722-002', paymentRecordedAt: demoTime(0, '09:00'), failReason: null }
-    ],
+    invoiceRecords: [],
+    pendingSettlements: [],
     reconciliationRows: [
-      { id: 'T1001', type: 'recharge', subject: '13800131234', amount: 200.00, platformStatus: 'success', channelStatus: 'success', diff: 'consistent', checked: false, checkedAt: null },
-      { id: 'T1002', type: 'consume', subject: '园区食堂', amount: -28.00, platformStatus: 'success', channelStatus: 'success', diff: 'consistent', checked: false, checkedAt: null }
-    ]
+      {
+        id: 'RC-DEMO-01',
+        type: 'recharge',
+        subject: '企业在线充值示例',
+        rechargeParkId: 'park-001',
+        consumeParkId: null,
+        amount: 100,
+        platformStatus: 'success',
+        channelStatus: 'success',
+        diff: 'consistent',
+        checked: false,
+        checkedAt: null
+      }
+    ],
+    user: { id: 'U001', homeParkId: 'park-001', name: '张伟', phone: '13800131234' },
+    merchantConfig: {
+      M001: { name: '园区食堂', ratio: 0.85, cycle: 'T+1', refundWindowHours: 24, prefix: 'YQST' },
+      M002: { name: '海智咖啡 HUB', ratio: 0.8, cycle: '周结', refundWindowHours: 24, prefix: 'HZKF' },
+      M003: { name: '园区便利店', ratio: 0.82, cycle: 'T+1', refundWindowHours: 24, prefix: 'YQBLD' },
+      M201: { name: '海创食堂', ratio: 0.85, cycle: 'T+1', refundWindowHours: 24, prefix: 'HCST' }
+    }
   };
+
+  // Stable IDs and relative dates make every default-role list demonstrable on any day.
+  (function seedDemoLists() {
+    const day = daysAgo => demoTime(daysAgo, '10:20');
+    for (let i = 1; i <= 10; i++) {
+      const suffix = String(i).padStart(2, '0');
+      const userId = 'U' + String(100 + i);
+      const enterpriseId = 'E' + String(100 + i);
+      const merchantId = 'M' + String(100 + i);
+      defaults.users.push({ id: userId, homeParkId: 'park-001', name: '演示员工' + suffix, phone: '1380000' + String(1000 + i), status: 'active' });
+      defaults.accounts.push({ id: 'A' + String(100 + i), userId, homeParkId: 'park-001', status: 'active', personal: { available: 60, frozen: 0, consumed: 0 }, enterpriseBalances: i <= 8 ? [{ enterpriseId: 'E001', available: 80, frozen: 0, consumed: 0 }] : [] });
+      if (i <= 8) defaults.enterprises[0].employeeUserIds.push(userId);
+      defaults.enterprises.push({ id: enterpriseId, parkId: 'park-001', name: '园区示范企业' + suffix, adminUserIds: ['U003'], employeeUserIds: [userId], status: 'active' });
+      defaults.merchants.push({ id: merchantId, parkId: 'park-001', name: '园区示范商户' + suffix, status: 'active' });
+      defaults.merchantConfig[merchantId] = { name: '园区示范商户' + suffix, ratio: 0.8, cycle: 'T+1', refundWindowHours: 24, prefix: 'DM' + suffix };
+    }
+    for (let i = 1; i <= 12; i++) {
+      const suffix = String(i).padStart(2, '0');
+      const createdAt = i === 1 ? new Date().toISOString() : day((i - 1) % 6);
+      const personalId = 'TX-DEMO-PR-' + suffix;
+      defaults.transactions.push({ id: personalId, type: 'personal_recharge', userId: 'U001', enterpriseId: null, parkId: 'park-001', batchId: null, amount: 50, paymentChannel: 'online', requestId: 'DEMO-PR-' + suffix, createdAt });
+      defaults.invoiceRecords.push({ id: 'INV-DEMO-PR-' + suffix, type: 'recharge_receipt', sourceId: personalId, userId: 'U001', enterpriseId: null, amount: 50, paymentChannel: 'online', createdAt });
+      const batchId = 'RB-DEMO-' + suffix;
+      const employeeId = defaults.enterprises[0].employeeUserIds[(i - 1) % defaults.enterprises[0].employeeUserIds.length];
+      const method = i % 2 ? 'online' : 'offline';
+      defaults.rechargeBatches.push({ id: batchId, enterpriseId: 'E001', rechargeParkId: 'park-001', method, requestId: 'DEMO-ER-' + suffix, totalAmount: 100, status: 'succeeded', paymentStatus: 'succeeded', postingStatus: 'succeeded', validationStatus: 'passed', paymentReference: method === 'online' ? 'PAY-DEMO-' + suffix : null, voucher: method === 'offline' ? 'voucher-demo-' + suffix + '.pdf' : null, createdAt, postedAt: createdAt });
+      defaults.rechargeBatchItems.push({ id: 'RBI-DEMO-' + suffix, batchId, enterpriseId: 'E001', userId: employeeId, amount: 100, validationResult: ['valid'], postingStatus: 'succeeded' });
+      defaults.transactions.push({ id: 'TX-DEMO-ER-' + suffix, type: 'enterprise_recharge', userId: employeeId, enterpriseId: 'E001', parkId: 'park-001', batchId, amount: 100, requestId: 'DEMO-ER-' + suffix + '-' + employeeId, createdAt });
+      defaults.invoiceRecords.push({ id: 'INV-DEMO-ER-' + suffix, type: 'recharge_receipt', sourceId: batchId, userId: null, enterpriseId: 'E001', amount: 100, createdAt });
+      const orderId = 'ORD-DEMO-' + suffix;
+      defaults.orders.push({ id: orderId, requestId: 'DEMO-ORDER-' + suffix, userId: 'U001', merchantId: 'M002', amount: 12 + i, enterpriseDeductions: [], personalAmount: 12 + i, rechargeParkIds: ['park-001'], consumeParkId: 'park-001', paymentStatus: 'paid', invoiceStatus: 'applied', refundStatus: 'none', settlementStatus: 'settling', createdAt });
+      defaults.invoiceRecords.push({ id: 'INV-DEMO-C-' + suffix, type: 'consume_invoice', sourceId: orderId, applicantUserId: 'U001', merchantId: 'M002', consumeParkId: 'park-001', titleSnapshot: { name: '北京海开智慧园区科技有限公司', taxId: '91110108MA01C8X2B' }, amount: 12 + i, status: 'pending', requestId: 'DEMO-INVOICE-' + suffix, createdAt });
+      defaults.pendingSettlements.push({ id: 'SET-DEMO-' + suffix, consumeParkId: 'park-001', merchantId: 'M002', orderIds: [orderId], grossAmount: 12 + i, serviceFee: Math.round((12 + i) * 20) / 100, settlementAmount: Math.round((12 + i) * 80) / 100, status: 'pending', createdAt });
+      defaults.refundRequests.push({ id: 'RF-DEMO-PR-' + suffix, type: 'personal_balance', userId: 'U001', enterpriseId: null, amount: 2, originalPaymentChannel: 'online', status: 'pending', requestId: 'DEMO-REFUND-PR-' + suffix, createdAt });
+      defaults.refundRequests.push({ id: 'RF-DEMO-ER-' + suffix, type: 'enterprise_balance', userId: null, enterpriseId: 'E001', adminUserId: 'U003', items: [{ userId: employeeId, amount: 5, rechargeBatchId: batchId, refundDestination: method === 'online' ? 'original_payer' : 'enterprise_payer_account' }], amount: 5, refundDestination: method === 'online' ? 'original_payer' : 'enterprise_payer_account', status: 'pending', requestId: 'DEMO-REFUND-ER-' + suffix, createdAt });
+      defaults.reconciliationRows.push({ id: 'RC-DEMO-ORDER-' + suffix, type: 'consume', subject: orderId, rechargeParkId: 'park-001', consumeParkId: 'park-001', amount: 12 + i, platformStatus: 'paid', channelStatus: 'pending', diff: 'consistent', checked: false, checkedAt: null });
+    }
+  })();
 
   function deepClone(value) {
     return JSON.parse(JSON.stringify(value));
   }
 
-  function isPlainObject(value) {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
+  function jsonSafeClone(value) {
+    try {
+      const serialized = JSON.stringify(value);
+      return serialized === undefined ? null : JSON.parse(serialized);
+    } catch (error) {
+      return null;
+    }
   }
 
-  function hasExactKeys(value, required, optional) {
-    const keys = Object.keys(value);
-    const allowed = required.concat(optional || []);
-    return required.every(key => Object.prototype.hasOwnProperty.call(value, key)) && keys.every(key => allowed.includes(key));
+  function isJsonSerializable(value) {
+    try {
+      return JSON.stringify(value) !== undefined;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function isPlainObject(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+    return Object.prototype.toString.call(value) === '[object Object]';
   }
 
   function isSafeString(value, maxLength, allowEmpty) {
@@ -163,13 +227,8 @@
     return isSafeString(value, MAX_TEXT_LENGTH, false);
   }
 
-  function isSafeTime(value) {
-    return isSafeString(value, MAX_TEXT_LENGTH, false);
-  }
-
-  function containsForbiddenKey(value) {
-    if (!value || typeof value !== 'object') return false;
-    return Object.keys(value).some(key => FORBIDDEN_KEYS.includes(key) || containsForbiddenKey(value[key]));
+  function isValidDateText(value) {
+    return typeof value === 'string' && value.length <= MAX_TEXT_LENGTH && Number.isFinite(Date.parse(value));
   }
 
   function toCents(value) {
@@ -180,118 +239,270 @@
     return value / 100;
   }
 
-  function formatDateTime(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    const h = String(date.getHours()).padStart(2, '0');
-    const min = String(date.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${d} ${h}:${min}`;
-  }
-
-  function now() {
-    return formatDateTime(new Date());
-  }
-
-  function refundDeadlineAt(hours) {
-    const d = new Date();
-    d.setHours(d.getHours() + (hours || 24));
-    return formatDateTime(d);
-  }
-
   function isMoney(value, allowZero) {
     return typeof value === 'number' && Number.isFinite(value) && (allowZero ? value >= 0 : value > 0) && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001;
   }
 
-  function hasId(item) {
-    return isSafeId(item.id);
-  }
-
   function hasUniqueIds(collection) {
-    return collection.every(hasId) && new Set(collection.map(item => item.id)).size === collection.length;
+    return collection.every(item => isPlainObject(item) && isSafeId(item.id)) && new Set(collection.map(item => item.id)).size === collection.length;
   }
 
-  function validAllocations(allocations, batchIds, expectedCents, owner) {
-    if (!Array.isArray(allocations) || !allocations.every(item => isPlainObject(item) && hasExactKeys(item, ['batchId', 'amount']) && isSafeId(item.batchId) && batchIds.has(item.batchId) && isMoney(item.amount, false))) return false;
-    if (owner && !allocations.every(item => {
-      const batch = batchIds instanceof Map ? batchIds.get(item.batchId) : null;
-      return batch && batch.parkId === owner.parkId && batch.userId === owner.userId;
-    })) return false;
-    return allocations.reduce((sum, item) => sum + toCents(item.amount), 0) === expectedCents;
+  function hasOnlyTopLevelKeys(value) {
+    const keys = Object.keys(value);
+    return keys.length === TOP_LEVEL_KEYS.length && TOP_LEVEL_KEYS.every(key => Object.prototype.hasOwnProperty.call(value, key));
   }
 
-  function validMerchantConfig(config) {
+  function validBalance(balance) {
+    return isPlainObject(balance) && isMoney(balance.available, true) && isMoney(balance.frozen, true) && isMoney(balance.consumed, true);
+  }
+
+  function validOrderDeductions(order, enterpriseIds) {
+    if (!Array.isArray(order.enterpriseDeductions) || !isMoney(order.personalAmount, true) || !isMoney(order.amount, false)) return false;
+    if (!order.enterpriseDeductions.every(item => isPlainObject(item) && isSafeId(item.enterpriseId) && enterpriseIds.has(item.enterpriseId) && isMoney(item.amount, false))) return false;
+    const enterpriseCents = order.enterpriseDeductions.reduce((sum, item) => sum + toCents(item.amount), 0);
+    return enterpriseCents + toCents(order.personalAmount) === toCents(order.amount);
+  }
+
+  function validMerchantConfig(config, merchantIds) {
+    if (!isPlainObject(config)) return false;
     return Object.keys(config).every(id => {
       const item = config[id];
-      return isSafeId(id) && isPlainObject(item) && hasExactKeys(item, ['name', 'ratio', 'cycle', 'refundWindowHours'], ['prefix']) &&
-        isSafeText(item.name) && typeof item.ratio === 'number' && Number.isFinite(item.ratio) && item.ratio >= 0 && item.ratio <= 1 &&
+      return merchantIds.has(id) && isPlainObject(item) && isSafeText(item.name) &&
+        typeof item.ratio === 'number' && Number.isFinite(item.ratio) && item.ratio >= 0 && item.ratio <= 1 &&
         isSafeText(item.cycle) && Number.isInteger(item.refundWindowHours) && item.refundWindowHours >= 0 &&
-        (item.prefix === undefined || (typeof item.prefix === 'string' && /^[A-Z0-9]{2,8}$/.test(item.prefix)));
+        typeof item.prefix === 'string' && /^[A-Z0-9]{2,8}$/.test(item.prefix);
     });
   }
 
   function isValidState(value) {
-    if (!isPlainObject(value) || !TOP_LEVEL_KEYS.every(key => Object.prototype.hasOwnProperty.call(value, key))) return false;
-    if (!COLLECTION_KEYS.every(key => Array.isArray(value[key]) && value[key].every(isPlainObject))) return false;
-    if (!isPlainObject(value.user) || !isPlainObject(value.wallet) || !isPlainObject(value.merchantConfig)) return false;
-    if (containsForbiddenKey(value) || !hasUniqueIds(value.parks) || !hasUniqueIds(value.users) || !hasUniqueIds(value.accounts) || !hasUniqueIds(value.batches) || !hasUniqueIds(value.transactions) || !hasUniqueIds(value.orders) || !hasUniqueIds(value.refundRequests) || !hasUniqueIds(value.merchants) || !hasUniqueIds(value.invoiceTitles) || !hasUniqueIds(value.invoiceRecords) || !hasUniqueIds(value.pendingSettlements) || !hasUniqueIds(value.reconciliationRows)) return false;
-    const parks = new Set(value.parks.map(item => item.id));
-    const users = new Map(value.users.map(item => [item.parkId + '|' + item.id, item]));
-    const merchants = new Map(value.merchants.map(item => [item.parkId + '|' + item.id, item]));
-    const accounts = new Map(value.accounts.map(item => [item.parkId + '|' + item.userId, item]));
-    const batches = new Map(value.batches.map(item => [item.id, item]));
-    const orders = new Map(value.orders.map(item => [item.id, item]));
-    const refunds = new Map(value.refundRequests.map(item => [item.id, item]));
-    const validOwner = item => isSafeId(item.parkId) && parks.has(item.parkId) && isSafeId(item.userId) && users.has(item.parkId + '|' + item.userId);
-    const validBatchReferences = (allocations, owner, expectedCents) => validAllocations(allocations, batches, expectedCents, owner);
-    if (!value.parks.every(item => hasExactKeys(item, ['id', 'name']) && hasId(item) && isSafeText(item.name))) return false;
-    if (!value.users.every(item => hasExactKeys(item, ['id', 'parkId', 'name', 'phone'], ['enterpriseName']) && hasId(item) && parks.has(item.parkId) && isSafeText(item.name) && isSafeText(item.phone) && (item.enterpriseName === undefined || isSafeText(item.enterpriseName)))) return false;
-    if (!value.accounts.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'total', 'available', 'frozen', 'consumed']) && hasId(item) && validOwner(item) && isMoney(item.total, true) && isMoney(item.available, true) && isMoney(item.frozen, true) && isMoney(item.consumed, true))) return false;
-    if (!value.batches.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'amount', 'remaining', 'createdAt', 'status'], ['requestId']) && hasId(item) && validOwner(item) && isMoney(item.amount, true) && isMoney(item.remaining, true) && toCents(item.remaining) <= toCents(item.amount) && isSafeTime(item.createdAt) && BATCH_STATUSES.includes(item.status))) return false;
-    if (!value.orders.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'merchant', 'merchantId', 'amount', 'time', 'status', 'refundDeadline'], ['batchAllocations', 'remark', 'compatStatus', 'requestId', 'userSnapshot', 'merchantSnapshot', 'settlementAmount']) && hasId(item) && validOwner(item) && merchants.has(item.parkId + '|' + item.merchantId) && isSafeText(item.merchant) && isMoney(item.amount, true) && isSafeTime(item.time) && isSafeTime(item.refundDeadline) && ORDER_STATUSES.includes(item.status) && (item.batchAllocations === undefined || validBatchReferences(item.batchAllocations, item, toCents(item.amount))) && (item.remark === undefined || isSafeString(item.remark, MAX_NOTES_LENGTH, false)) && (item.requestId === undefined || isSafeId(item.requestId)) && (item.settlementAmount === undefined || isMoney(item.settlementAmount, true)) && (item.userSnapshot === undefined || isPlainObject(item.userSnapshot)) && (item.merchantSnapshot === undefined || isPlainObject(item.merchantSnapshot)))) return false;
-    if (!value.refundRequests.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'amount', 'frozenAmount', 'batchAllocations', 'createdAt', 'status', 'notes'], ['compatStatus']) && hasId(item) && validOwner(item) && isMoney(item.amount, true) && isMoney(item.frozenAmount, true) && isSafeTime(item.createdAt) && isSafeString(item.notes, MAX_NOTES_LENGTH, false) && REFUND_STATUSES.includes(item.status) && validBatchReferences(item.batchAllocations, item, toCents(item.frozenAmount)))) return false;
-    if (!value.transactions.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'type', 'title', 'amount', 'time', 'status'], ['merchantId', 'merchant', 'orderId', 'refundId', 'requestId', 'batchId', 'channel']) && hasId(item) && validOwner(item) && TRANSACTION_TYPES.includes(item.type) && TRANSACTION_STATUSES.includes(item.status) && isSafeText(item.title) && isSafeTime(item.time) && isMoney(Math.abs(item.amount), false) && (item.orderId === undefined || (orders.has(item.orderId) && orders.get(item.orderId).parkId === item.parkId && orders.get(item.orderId).userId === item.userId)) && (item.refundId === undefined || (refunds.has(item.refundId) && refunds.get(item.refundId).parkId === item.parkId && refunds.get(item.refundId).userId === item.userId)) && (item.batchId === undefined || (batches.has(item.batchId) && batches.get(item.batchId).parkId === item.parkId && batches.get(item.batchId).userId === item.userId)) && (item.merchantId === undefined || merchants.has(item.parkId + '|' + item.merchantId)))) return false;
-    if (!value.merchants.every(item => hasExactKeys(item, ['id', 'parkId', 'name']) && hasId(item) && parks.has(item.parkId) && isSafeText(item.name))) return false;
-    if (!value.pendingSettlements.every(item => {
-      if (!hasExactKeys(item, ['id', 'parkId', 'merchantId', 'orderIds', 'total', 'merchantShare', 'parkShare', 'ratio', 'cycle', 'status', 'paymentReference', 'paymentRecordedAt', 'failReason'])) return false;
-      if (!hasId(item) || !isSafeId(item.parkId) || !parks.has(item.parkId) || !isSafeId(item.merchantId) || !merchants.has(item.parkId + '|' + item.merchantId)) return false;
-      if (!Array.isArray(item.orderIds) || !item.orderIds.every(orderId => {
-        if (!isSafeId(orderId) || !orders.has(orderId)) return false;
-        const order = orders.get(orderId);
-        return order.parkId === item.parkId && order.merchantId === item.merchantId;
-      })) return false;
-      return isMoney(item.total, true) && isMoney(item.merchantShare, true) && isMoney(item.parkShare, true) &&
-        typeof item.ratio === 'number' && Number.isFinite(item.ratio) && item.ratio >= 0 && item.ratio <= 1 &&
-        isSafeText(item.cycle) && SETTLEMENT_STATUSES.includes(item.status) &&
-        (item.paymentReference === null || isSafeText(item.paymentReference)) &&
-        (item.paymentRecordedAt === null || isSafeTime(item.paymentRecordedAt)) &&
-        (item.failReason === null || isSafeString(item.failReason, MAX_NOTES_LENGTH, false));
+    if (!isPlainObject(value) || !hasOnlyTopLevelKeys(value)) return false;
+    if (!COLLECTION_KEYS.every(key => Array.isArray(value[key]))) return false;
+    if (!isPlainObject(value.user) || !isPlainObject(value.merchantConfig)) return false;
+    if (!COLLECTION_KEYS.every(key => hasUniqueIds(value[key]))) return false;
+
+    const parkIds = new Set(value.parks.map(item => item.id));
+    const userIds = new Set(value.users.map(item => item.id));
+    const enterpriseIds = new Set(value.enterprises.map(item => item.id));
+    const accountUserIds = new Set();
+    const merchantIds = new Set(value.merchants.map(item => item.id));
+
+    if (!value.parks.every(item => isSafeText(item.name))) return false;
+    if (!value.users.every(item => parkIds.has(item.homeParkId) && isSafeText(item.name) && isSafeText(item.phone) && ['active', 'inactive'].includes(item.status))) return false;
+    if (!value.enterprises.every(item =>
+      parkIds.has(item.parkId) && isSafeText(item.name) && ['active', 'inactive'].includes(item.status) &&
+      Array.isArray(item.adminUserIds) && item.adminUserIds.every(id => userIds.has(id)) &&
+      Array.isArray(item.employeeUserIds) && item.employeeUserIds.every(id => userIds.has(id))
+    )) return false;
+    if (!value.accounts.every(item => {
+      if (!userIds.has(item.userId) || accountUserIds.has(item.userId) || !parkIds.has(item.homeParkId) || !['active', 'inactive'].includes(item.status) || !validBalance(item.personal)) return false;
+      accountUserIds.add(item.userId);
+      if (!Array.isArray(item.enterpriseBalances)) return false;
+      const balanceEnterpriseIds = new Set();
+      return item.enterpriseBalances.every(balance => {
+        if (!isPlainObject(balance) || !enterpriseIds.has(balance.enterpriseId) || balanceEnterpriseIds.has(balance.enterpriseId) || !validBalance(balance)) return false;
+        const enterprise = value.enterprises.find(candidate => candidate.id === balance.enterpriseId);
+        balanceEnterpriseIds.add(balance.enterpriseId);
+        return enterprise.employeeUserIds.includes(item.userId);
+      });
     })) return false;
-    if (!value.invoiceTitles.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'name', 'taxId', 'address', 'phone', 'bank', 'bankAccount', 'isDefault', 'deletedAt']) && hasId(item) && isSafeId(item.parkId) && parks.has(item.parkId) && isSafeId(item.userId) && users.has(item.parkId + '|' + item.userId) && isSafeText(item.name) && isSafeString(item.taxId, MAX_TEXT_LENGTH, false) && isSafeString(item.address, MAX_TEXT_LENGTH, false) && isSafeString(item.phone, MAX_TEXT_LENGTH, false) && isSafeString(item.bank, MAX_TEXT_LENGTH, false) && isSafeString(item.bankAccount, MAX_TEXT_LENGTH, false) && typeof item.isDefault === 'boolean' && (item.deletedAt === null || isSafeTime(item.deletedAt)))) return false;
-    if (!value.invoiceRecords.every(item => hasExactKeys(item, ['id', 'parkId', 'userId', 'transactionId', 'titleId', 'titleSnapshot', 'amount', 'status', 'createdAt', 'requestId']) && hasId(item) && isSafeId(item.parkId) && parks.has(item.parkId) && isSafeId(item.userId) && users.has(item.parkId + '|' + item.userId) && isMoney(item.amount, false) && isSafeTime(item.createdAt) && isSafeId(item.requestId))) return false;
-    if (!value.batches.every(batch => accounts.has(batch.parkId + '|' + batch.userId))) return false;
+    if (!value.merchants.every(item => parkIds.has(item.parkId) && isSafeText(item.name) && ['active', 'inactive'].includes(item.status))) return false;
+    if (!validMerchantConfig(value.merchantConfig, merchantIds)) return false;
+    if (!userIds.has(value.user.id) || !parkIds.has(value.user.homeParkId)) return false;
+
+    const batchIds = new Set(value.rechargeBatches.map(item => item.id));
+    const batchRequestIds = new Set();
+    const batchesById = new Map(value.rechargeBatches.map(item => [item.id, item]));
+    const batchItemsById = new Map();
+    value.rechargeBatchItems.forEach(item => {
+      if (!batchItemsById.has(item.batchId)) batchItemsById.set(item.batchId, []);
+      batchItemsById.get(item.batchId).push(item);
+    });
+    if (!value.rechargeBatches.every(item => {
+      if (!enterpriseIds.has(item.enterpriseId) || !parkIds.has(item.rechargeParkId) ||
+        !['online', 'offline'].includes(item.method) || !isSafeId(item.requestId) || batchRequestIds.has(item.requestId) ||
+        !['pending_payment', 'pending_confirmation', 'succeeded', 'validation_failed'].includes(item.status) ||
+        !['pending', 'succeeded'].includes(item.paymentStatus) ||
+        !['pending', 'succeeded'].includes(item.postingStatus) ||
+        !['passed', 'failed'].includes(item.validationStatus) || !isMoney(item.totalAmount, item.validationStatus === 'failed') ||
+        !isValidDateText(item.createdAt) ||
+        (item.paymentReference !== null && !isSafeText(item.paymentReference)) ||
+        (item.voucher !== null && !isSafeText(item.voucher))) return false;
+      batchRequestIds.add(item.requestId);
+      if (item.validationStatus === 'failed') {
+        return item.status === 'validation_failed' && item.paymentStatus === 'pending' && item.postingStatus === 'pending' &&
+          item.paymentReference === null && item.voucher === null && item.postedAt === null;
+      }
+      const pendingStatus = item.method === 'online' ? 'pending_payment' : 'pending_confirmation';
+      if (item.postingStatus === 'succeeded') {
+        if (item.status !== 'succeeded' || item.paymentStatus !== 'succeeded' || !isValidDateText(item.postedAt)) return false;
+      } else if (item.status !== pendingStatus || item.paymentStatus !== 'pending' || item.postedAt !== null) return false;
+      if (item.method === 'online') {
+        if (item.voucher !== null) return false;
+        if (item.paymentStatus === 'succeeded' ? !isSafeText(item.paymentReference) : item.paymentReference !== null) return false;
+      } else {
+        if (item.paymentReference !== null) return false;
+        if (item.paymentStatus === 'succeeded' ? !isSafeText(item.voucher) : item.voucher !== null) return false;
+      }
+      return true;
+    })) return false;
+    if (!value.rechargeBatchItems.every(item => {
+      const batch = batchesById.get(item.batchId);
+      if (!batch || item.enterpriseId !== batch.enterpriseId || !Array.isArray(item.validationResult) ||
+        item.validationResult.length === 0 || !item.validationResult.every(code => isSafeText(code))) return false;
+      if (batch.validationStatus === 'failed') {
+        return (item.userId === null || isSafeId(item.userId)) &&
+          (item.amount === null || (typeof item.amount === 'number' && Number.isFinite(item.amount) &&
+            Math.abs(item.amount * 100 - Math.round(item.amount * 100)) < 0.000001)) &&
+          item.postingStatus === 'not_posted' &&
+          Object.prototype.hasOwnProperty.call(item, 'rawItem') && isJsonSerializable(item.rawItem);
+      }
+      return enterpriseIds.has(item.enterpriseId) && userIds.has(item.userId) && isMoney(item.amount, false) &&
+        !Object.prototype.hasOwnProperty.call(item, 'rawItem') &&
+        ['pending', 'succeeded'].includes(item.postingStatus) &&
+        item.validationResult.length === 1 && item.validationResult[0] === 'valid';
+    })) return false;
+    if (!value.rechargeBatches.every(batch => {
+      const items = batchItemsById.get(batch.id) || [];
+      if (items.length === 0) return false;
+      const totalCents = items.reduce((sum, item) => sum + (isMoney(item.amount, false) ? toCents(item.amount) : 0), 0);
+      if (batch.validationStatus === 'failed') {
+        return items.some(item => !(item.validationResult.length === 1 && item.validationResult[0] === 'valid')) &&
+          items.every(item => item.postingStatus === 'not_posted') &&
+          totalCents === toCents(batch.totalAmount);
+      }
+      const expectedItemPostingStatus = batch.postingStatus === 'succeeded' ? 'succeeded' : 'pending';
+      const userIdsInBatch = new Set();
+      return items.every(item => {
+        if (userIdsInBatch.has(item.userId) || item.postingStatus !== expectedItemPostingStatus) return false;
+        userIdsInBatch.add(item.userId);
+        return true;
+      }) && totalCents === toCents(batch.totalAmount);
+    })) return false;
+    if (!value.orders.every(order => userIds.has(order.userId) && merchantIds.has(order.merchantId) && parkIds.has(order.consumeParkId) && validOrderDeductions(order, enterpriseIds))) return false;
+    const ordersById = new Map(value.orders.map(item => [item.id, item]));
+
+    const refundRequestIds = new Set();
+    const enterpriseRefundedBySource = new Map();
+    if (!value.refundRequests.every(item => {
+      if (!isSafeId(item.requestId) || refundRequestIds.has(item.requestId) ||
+        !isMoney(item.amount, false) || !isSafeText(item.status) || !isValidDateText(item.createdAt)) return false;
+      refundRequestIds.add(item.requestId);
+      if (item.type === 'personal_balance') {
+        const hasMatchingRechargeSource = value.transactions.some(transaction =>
+          transaction.type === 'personal_recharge' && transaction.userId === item.userId &&
+          transaction.paymentChannel === item.originalPaymentChannel &&
+          value.invoiceRecords.some(receipt =>
+            receipt.type === 'recharge_receipt' && receipt.sourceId === transaction.id &&
+            receipt.paymentChannel === transaction.paymentChannel
+          )
+        );
+        return userIds.has(item.userId) && item.enterpriseId === null &&
+          item.originalPaymentChannel === 'online' && hasMatchingRechargeSource;
+      }
+      if (item.type !== 'enterprise_balance' || !enterpriseIds.has(item.enterpriseId) ||
+        !userIds.has(item.adminUserId) || !Array.isArray(item.items) || item.items.length === 0 ||
+        !['original_payer', 'enterprise_payer_account', 'mixed'].includes(item.refundDestination)) return false;
+      const enterprise = value.enterprises.find(candidate => candidate.id === item.enterpriseId);
+      const itemTotalCents = item.items.reduce((sum, refundItem) => {
+        if (!isPlainObject(refundItem) || !enterprise.employeeUserIds.includes(refundItem.userId) ||
+          !batchIds.has(refundItem.rechargeBatchId) || !isMoney(refundItem.amount, false) ||
+          !['original_payer', 'enterprise_payer_account'].includes(refundItem.refundDestination)) return NaN;
+        const batch = batchesById.get(refundItem.rechargeBatchId);
+        const batchItem = value.rechargeBatchItems.find(candidate => candidate.batchId === refundItem.rechargeBatchId &&
+          candidate.enterpriseId === item.enterpriseId && candidate.userId === refundItem.userId);
+        if (batch.enterpriseId !== item.enterpriseId || batch.postingStatus !== 'succeeded' ||
+          !batchItem || batchItem.postingStatus !== 'succeeded') return NaN;
+        const sourceKey = item.enterpriseId + '|' + refundItem.rechargeBatchId + '|' + refundItem.userId;
+        const refundedCents = (enterpriseRefundedBySource.get(sourceKey) || 0) + toCents(refundItem.amount);
+        if (refundedCents > toCents(batchItem.amount)) return NaN;
+        enterpriseRefundedBySource.set(sourceKey, refundedCents);
+        return sum + toCents(refundItem.amount);
+      }, 0);
+      return enterprise.adminUserIds.includes(item.adminUserId) && itemTotalCents === toCents(item.amount);
+    })) return false;
+
+    const rechargeTransactionsById = new Map();
+    const enterpriseTransactionsByBatchAndUser = new Map();
+    if (!value.transactions.every(item => {
+      if (!userIds.has(item.userId) || !isSafeText(item.type) || !isMoney(Math.abs(item.amount), false)) return false;
+      if (!['personal_recharge', 'enterprise_recharge'].includes(item.type)) return true;
+      if (!parkIds.has(item.parkId) || !isSafeId(item.requestId) || !isValidDateText(item.createdAt)) return false;
+      rechargeTransactionsById.set(item.id, item);
+      if (item.type === 'personal_recharge') {
+        return item.enterpriseId === null && item.batchId === null && item.paymentChannel === 'online';
+      }
+      const batch = batchesById.get(item.batchId);
+      if (!batch || item.enterpriseId !== batch.enterpriseId || item.parkId !== batch.rechargeParkId) return false;
+      const matchingItems = (batchItemsById.get(batch.id) || []).filter(batchItem =>
+        batchItem.userId === item.userId && batchItem.enterpriseId === item.enterpriseId && toCents(batchItem.amount) === toCents(item.amount)
+      );
+      if (matchingItems.length !== 1) return false;
+      const relationKey = batch.id + '|' + item.userId;
+      if (enterpriseTransactionsByBatchAndUser.has(relationKey)) return false;
+      enterpriseTransactionsByBatchAndUser.set(relationKey, item);
+      return true;
+    })) return false;
+    if (!value.rechargeBatches.every(batch => {
+      const items = batchItemsById.get(batch.id) || [];
+      if (batch.postingStatus === 'pending') return !items.some(item => enterpriseTransactionsByBatchAndUser.has(batch.id + '|' + item.userId));
+      return items.every(item => enterpriseTransactionsByBatchAndUser.has(batch.id + '|' + item.userId));
+    })) return false;
+    if (!value.invoiceTitles.every(item => userIds.has(item.userId) && isSafeText(item.name))) return false;
+    const receiptSourceIds = new Set();
+    const invoiceOrderIds = new Set();
+    if (!value.invoiceRecords.every(item => {
+      if (!isSafeText(item.type) || !isSafeId(item.sourceId)) return false;
+      if (item.type === 'consume_invoice') {
+        const order = ordersById.get(item.sourceId);
+        if (!order || order.paymentStatus !== 'paid' || order.refundStatus !== 'none' ||
+          !userIds.has(item.applicantUserId) || item.applicantUserId !== order.userId ||
+          item.merchantId !== order.merchantId || item.consumeParkId !== order.consumeParkId ||
+          !isPlainObject(item.titleSnapshot) || !isSafeText(item.titleSnapshot.name) ||
+          !isSafeText(item.titleSnapshot.taxId) || !isMoney(item.amount, false) ||
+          toCents(item.amount) !== toCents(order.amount) || !isSafeText(item.status) ||
+          !isSafeId(item.requestId) || !isValidDateText(item.createdAt) ||
+          invoiceOrderIds.has(item.sourceId)) return false;
+        invoiceOrderIds.add(item.sourceId);
+        return order.invoiceStatus !== 'not_applied';
+      }
+      if (item.type === 'service_fee_invoice') {
+        const merchant = value.merchants.find(candidate => candidate.id === item.merchantId);
+        return Boolean(merchant) && parkIds.has(item.consumeParkId) && merchant.parkId === item.consumeParkId &&
+          isMoney(item.amount, false) && isSafeText(item.status) && isValidDateText(item.createdAt);
+      }
+      if (item.type !== 'recharge_receipt') return false;
+      if (!isMoney(item.amount, false) || !isValidDateText(item.createdAt) || receiptSourceIds.has(item.sourceId)) return false;
+      receiptSourceIds.add(item.sourceId);
+      const transaction = rechargeTransactionsById.get(item.sourceId);
+      if (transaction && transaction.type === 'personal_recharge') {
+        return item.userId === transaction.userId && item.enterpriseId === null &&
+          item.paymentChannel === transaction.paymentChannel && toCents(item.amount) === toCents(transaction.amount);
+      }
+      const batch = batchesById.get(item.sourceId);
+      return Boolean(batch) && batch.postingStatus === 'succeeded' && item.userId === null &&
+        item.enterpriseId === batch.enterpriseId && toCents(item.amount) === toCents(batch.totalAmount);
+    })) return false;
+    if (!Array.from(rechargeTransactionsById.values()).every(item =>
+      item.type !== 'personal_recharge' || receiptSourceIds.has(item.id)
+    )) return false;
+    if (!value.rechargeBatches.every(batch =>
+      batch.postingStatus === 'succeeded' ? receiptSourceIds.has(batch.id) : !receiptSourceIds.has(batch.id)
+    )) return false;
     return true;
   }
-  function normalizeEntities(target) {
-    const owner = item => { item.parkId = item.parkId || 'park-001'; item.userId = item.userId || 'U001'; return item; };
-    (target.batches || []).forEach(owner);
-    (target.transactions || []).forEach(owner);
-    (target.orders || []).forEach(owner);
-    (target.refundRequests || []).forEach(owner);
-    (target.orders || []).forEach(item => { item.merchantId = item.merchantId || 'M001'; });
-    (target.batches || []).forEach(item => { if (!item.createdAt) item.createdAt = '2026-07-16 10:00'; });
-    (target.orders || []).forEach(item => { if (item.status === 'pending_confirm') { item.compatStatus = item.status; item.status = 'payment_failed'; } });
-    (target.refundRequests || []).forEach(item => { if (item.status === 'park_approved') { item.compatStatus = item.status; item.status = 'manual_processing'; } });
-    return target;
-  }
 
-  normalizeEntities(defaults);
   let state = deepClone(defaults);
+
+  function replaceState(nextState) {
+    Object.keys(state).forEach(key => delete state[key]);
+    Object.assign(state, deepClone(nextState));
+  }
 
   function save() {
     if (!isValidState(state)) return false;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(VERSION_KEY, DATA_VERSION);
       return true;
     } catch (error) {
       console.error('parkStateV2 save failed:', error);
@@ -299,68 +510,13 @@
     }
   }
 
-  function replaceState(nextState) {
-    Object.keys(state).forEach(key => delete state[key]);
-    Object.assign(state, deepClone(nextState));
-  }
-
-  function migrateState(parsed) {
-    if (!isPlainObject(parsed)) return parsed;
-    const migrated = normalizeEntities(deepClone(parsed));
-    migrated.invoiceTitles = Array.isArray(migrated.invoiceTitles) ? migrated.invoiceTitles : [];
-    migrated.invoiceRecords = Array.isArray(migrated.invoiceRecords) ? migrated.invoiceRecords : [];
-    migrated.parks = Array.isArray(migrated.parks) ? migrated.parks : deepClone(defaults.parks);
-    migrated.users = Array.isArray(migrated.users) ? migrated.users : [deepClone(migrated.user || defaults.user)];
-    migrated.accounts = Array.isArray(migrated.accounts) ? migrated.accounts : [Object.assign({ id: 'A001', parkId: 'park-001', userId: 'U001', consumed: 0 }, migrated.wallet || defaults.wallet)];
-    migrated.merchants = Array.isArray(migrated.merchants) ? migrated.merchants : deepClone(defaults.merchants);
-    migrated.batches = Array.isArray(migrated.batches) ? migrated.batches : [];
-    migrated.refundRequests = Array.isArray(migrated.refundRequests) ? migrated.refundRequests : [];
-    migrated.orders = Array.isArray(migrated.orders) ? migrated.orders : [];
-    migrated.transactions = Array.isArray(migrated.transactions) ? migrated.transactions : [];
-    migrated.pendingSettlements = Array.isArray(migrated.pendingSettlements) ? migrated.pendingSettlements : [];
-    migrated.reconciliationRows = Array.isArray(migrated.reconciliationRows) ? migrated.reconciliationRows : [];
-    migrated.users.forEach(user => { user.parkId = user.parkId || 'park-001'; });
-    migrated.accounts.forEach(account => { account.parkId = account.parkId || 'park-001'; account.userId = account.userId || 'U001'; });
-    migrated.batches.forEach(batch => { batch.parkId = batch.parkId || 'park-001'; batch.userId = batch.userId || 'U001'; });
-    migrated.orders.forEach(order => { order.parkId = order.parkId || 'park-001'; order.userId = order.userId || 'U001'; });
-    migrated.transactions.forEach(transaction => { transaction.parkId = transaction.parkId || 'park-001'; transaction.userId = transaction.userId || 'U001'; });
-    migrated.refundRequests.forEach(request => { request.parkId = request.parkId || 'park-001'; request.userId = request.userId || 'U001'; });
-    const defaultPrefixes = { M001: 'YQST', M002: 'HZKF', M003: 'YQBLD' };
-    migrated.merchantConfig = migrated.merchantConfig || deepClone(defaults.merchantConfig);
-    Object.keys(defaultPrefixes).forEach(id => { if (migrated.merchantConfig[id] && !migrated.merchantConfig[id].prefix) migrated.merchantConfig[id].prefix = defaultPrefixes[id]; });
-    const used = new Set(migrated.orders.map(order => order.id));
-    const ids = new Map();
-    migrated.orders.forEach(order => {
-      if (!isSafeId(order.id) || /^[A-Z0-9]{2,8}-\d{16}$/.test(order.id)) return;
-      const prefix = migrated.merchantConfig[order.merchantId] && migrated.merchantConfig[order.merchantId].prefix || 'SHOP';
-      const stamp = String(order.time || '').replace(/[^0-9]/g, '').slice(0, 12);
-      if (stamp.length !== 12) return;
-      let id; let sequence = 1;
-      do { id = prefix + '-' + stamp + String(sequence++).padStart(4, '0'); } while (used.has(id));
-      used.add(id); ids.set(order.id, id); order.id = id;
-    });
-    migrated.transactions.forEach(item => { if (ids.has(item.orderId)) item.orderId = ids.get(item.orderId); });
-    migrated.pendingSettlements.forEach(item => {
-      if (Array.isArray(item.orderIds)) item.orderIds = item.orderIds.map(id => ids.get(id) || id);
-      if (item.parkId) return;
-      const linkedOrders = Array.isArray(item.orderIds) ? item.orderIds.map(id => migrated.orders.find(order => order.id === id)).filter(Boolean) : [];
-      const linkedParks = new Set(linkedOrders.filter(order => order.merchantId === item.merchantId).map(order => order.parkId));
-      if (linkedParks.size === 1 && linkedOrders.length === item.orderIds.length) {
-        item.parkId = linkedParks.values().next().value;
-        return;
-      }
-      const merchantParks = new Set(migrated.merchants.filter(merchant => merchant.id === item.merchantId).map(merchant => merchant.parkId));
-      if (linkedOrders.length === 0 && merchantParks.size === 1) item.parkId = merchantParks.values().next().value;
-    });
-    return migrated;
-  }
   function load() {
     let loaded = false;
     try {
       if (localStorage.getItem(VERSION_KEY) === DATA_VERSION) {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const parsed = migrateState(JSON.parse(raw));
+          const parsed = JSON.parse(raw);
           if (isValidState(parsed)) {
             replaceState(parsed);
             loaded = true;
@@ -373,8 +529,25 @@
     if (!loaded) {
       replaceState(defaults);
       save();
-      try { localStorage.setItem(VERSION_KEY, DATA_VERSION); } catch (error) { /* ignore */ }
     }
+    return state;
+  }
+
+  function reset() {
+    replaceState(defaults);
+    return save();
+  }
+
+  function resetForTests() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(VERSION_KEY);
+    } catch (error) {
+      console.error('parkStateV2 reset failed:', error);
+    }
+    replaceState(defaults);
+    save();
+    return state;
   }
 
   function result(ok, code, data, idempotent) {
@@ -385,13 +558,38 @@
     return result(true, code, data, idempotent);
   }
 
+  function restoreStorageValue(key, value) {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  }
+
   function transactional(action) {
     return function () {
       const snapshot = deepClone(state);
+      let storedState = null;
+      let storedVersion = null;
+      try {
+        storedState = localStorage.getItem(STORAGE_KEY);
+        storedVersion = localStorage.getItem(VERSION_KEY);
+      } catch (error) {
+        console.error('parkStateV2 transaction snapshot failed:', error);
+        return result(false, 'PERSIST_FAILED');
+      }
       const response = action.apply(null, arguments);
-      if (!response.ok || response.idempotent) return response;
+      const shouldPersistFailure = !response.ok && response.persistOnFailure === true;
+      if ((!response.ok && !shouldPersistFailure) || response.idempotent) return response;
       if (!isValidState(state) || !save()) {
         replaceState(snapshot);
+        try {
+          restoreStorageValue(STORAGE_KEY, storedState);
+        } catch (error) {
+          console.error('parkStateV2 state rollback failed:', error);
+        }
+        try {
+          restoreStorageValue(VERSION_KEY, storedVersion);
+        } catch (error) {
+          console.error('parkStateV2 version rollback failed:', error);
+        }
         return result(false, 'PERSIST_FAILED');
       }
       response.persisted = true;
@@ -409,530 +607,655 @@
     return candidate;
   }
 
-  function accountFor(parkId, userId) {
-    return state.accounts.find(item => item.parkId === parkId && item.userId === userId) || null;
-  }
-
-  function ownerFrom(input, fallbackParkId = 'park-001', fallbackUserId = 'U001') {
-    const entity = input && typeof input === 'object' ? input : {};
-    const parkId = entity.parkId || fallbackParkId;
-    const userId = entity.userId || fallbackUserId;
-    return { parkId, userId, account: accountFor(parkId, userId) };
-  }
-
-  function refreshLegacyWallet(owner) {
-    if (owner.parkId !== 'park-001' || owner.userId !== 'U001' || !owner.account) return;
-    state.wallet.total = owner.account.total;
-    state.wallet.available = owner.account.available;
-    state.wallet.frozen = owner.account.frozen;
-  }
-
-  function allocateBatches(amountCents, owner) {
-    let needed = amountCents;
-    const allocations = [];
-    state.batches.filter(batch => batch.parkId === owner.parkId && batch.userId === owner.userId).forEach(batch => {
-      if (needed <= 0) return;
-      const allocated = Math.min(toCents(batch.remaining), needed);
-      if (allocated > 0) allocations.push({ batchId: batch.id, amount: fromCents(allocated) });
-      needed -= allocated;
-    });
-    return needed === 0 ? allocations : null;
-  }
-
-  function changeBatchBalances(allocations, direction) {
-    allocations.forEach(allocation => {
-      const batch = state.batches.find(item => item.id === allocation.batchId);
-      batch.remaining = fromCents(toCents(batch.remaining) + direction * toCents(allocation.amount));
-    });
-  }
-
-  function recharge(amount, requestId, ownerInput) {
-    const owner = ownerFrom(ownerInput);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    if (!isMoney(amount, false)) return result(false, 'INVALID_AMOUNT');
-    if (typeof requestId !== 'string' || !requestId.trim()) return result(false, 'INVALID_REQUEST_ID');
-    const normalizedRequestId = requestId.trim();
-    const existing = state.transactions.find(item => item.type === 'recharge' && item.requestId === normalizedRequestId && item.parkId === owner.parkId && item.userId === owner.userId);
-    if (existing) return successful('ALREADY_RECHARGED', existing, true);
-    const amountCents = toCents(amount);
-    owner.account.total = fromCents(toCents(owner.account.total) + amountCents);
-    owner.account.available = fromCents(toCents(owner.account.available) + amountCents);
-    const batch = { id: nextId('BA', state.batches), parkId: owner.parkId, userId: owner.userId, amount, remaining: amount, createdAt: now(), status: 'active', requestId: normalizedRequestId };
-    const transaction = { id: nextId('TR', state.transactions), parkId: owner.parkId, userId: owner.userId, type: 'recharge', title: '余额充值', amount, time: now(), status: 'success', channel: '微信支付', requestId: normalizedRequestId, batchId: batch.id };
-    state.batches.push(batch);
-    state.transactions.push(transaction);
-    refreshLegacyWallet(owner);
-    return successful('RECHARGED', transaction);
-  }
-
-  function orderPrefix(merchantId, merchant) {
-    const config = state.merchantConfig[merchantId];
-    if (config && config.prefix) return config.prefix;
-    return String(merchant || '').replace(/[^\u4e00-\u9fa5A-Za-z]/g, '').slice(0, 4).toUpperCase() || 'SHOP';
-  }
-
-  function nextOrderId(merchantId, merchant, time) {
-    const prefix = orderPrefix(merchantId, merchant);
-    const stamp = String(time).replace(/[^0-9]/g, '').slice(0, 12);
-    const base = prefix + '-' + stamp;
-    let sequence = 1;
-    let candidate;
-    do {
-      candidate = base + String(sequence++).padStart(4, '0');
-    } while (state.orders.some(item => item.id === candidate));
-    return candidate;
-  }
-
-  function createPendingOrder(merchant, merchantId, amount, remark, ownerInput) {
-    const merchantEntity = state.merchants.find(item => item.id === merchantId && (!ownerInput || !ownerInput.parkId || item.parkId === ownerInput.parkId));
-    const owner = ownerFrom(ownerInput, merchantEntity ? merchantEntity.parkId : 'park-001', ownerInput && ownerInput.userId || 'U001');
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    if (!merchantEntity || merchantEntity.parkId !== owner.parkId) return result(false, 'MERCHANT_NOT_FOUND');
-    if (typeof merchant !== 'string' || !isSafeText(merchant)) return result(false, 'INVALID_MERCHANT');
-    if (typeof merchantId !== 'string' || !isSafeId(merchantId)) return result(false, 'INVALID_MERCHANT_ID');
-    if (!isMoney(amount, false)) return result(false, 'INVALID_AMOUNT');
-    if (remark !== undefined && (typeof remark !== 'string' || !isSafeString(remark, MAX_NOTES_LENGTH, false))) return result(false, 'INVALID_REMARK');
-    const config = state.merchantConfig[merchantId] || { refundWindowHours: 24 };
-    const orderTime = now();
-    const order = {
-      id: nextOrderId(merchantId, merchant, orderTime),
-      parkId: owner.parkId,
-      userId: owner.userId,
-      merchant,
-      merchantId,
-      amount,
-      time: orderTime,
-      status: 'payment_failed',
-      compatStatus: 'pending_confirm',
-      refundDeadline: refundDeadlineAt(config.refundWindowHours)
-    };
-    if (remark !== undefined) order.remark = remark;
-    state.orders.push(order);
-    return successful('PENDING_ORDER_CREATED', order);
-  }
-
-  function consume(orderId) {
-    if (typeof orderId !== 'string' || !orderId) return result(false, 'INVALID_ORDER_ID');
-    const order = state.orders.find(item => item.id === orderId);
-    if (!order) return result(false, 'ORDER_NOT_FOUND');
-    const existing = state.transactions.find(item => item.type === 'consume' && item.orderId === orderId);
-    if (order.status === 'paid' && existing) return successful('ALREADY_CONSUMED', existing, true);
-    if (!(order.status === 'payment_failed' && order.compatStatus === 'pending_confirm' && !existing)) return result(false, 'ORDER_NOT_CONSUMABLE');
-    if (!isMoney(order.amount, false)) return result(false, 'INVALID_ORDER_AMOUNT');
-    const owner = ownerFrom(order);
-    const amountCents = toCents(order.amount);
-    if (!owner.account || toCents(owner.account.available) < amountCents) return result(false, 'INSUFFICIENT_BALANCE');
-    const allocations = allocateBatches(amountCents, owner);
-    if (!allocations) return result(false, 'INCONSISTENT_BATCH_BALANCE');
-
-    changeBatchBalances(allocations, -1);
-    owner.account.total = fromCents(toCents(owner.account.total) - amountCents);
-    owner.account.available = fromCents(toCents(owner.account.available) - amountCents);
-    order.status = 'paid';
-    delete order.compatStatus;
-    order.batchAllocations = allocations;
-    const transaction = { id: nextId('TC', state.transactions), parkId: owner.parkId, userId: owner.userId, merchantId: order.merchantId, type: 'consume', title: order.merchant + '消费', amount: -order.amount, merchant: order.merchant, orderId, time: now(), status: 'success' };
-    state.transactions.push(transaction);
-    refreshLegacyWallet(owner);
-    return successful('CONSUMED', transaction);
-  }
-
-  function collectPayment(input) {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return result(false, 'INVALID_PAYMENT');
-    const owner = ownerFrom(input);
-    const merchant = state.merchants.find(item => item.id === input.merchantId && item.parkId === input.parkId);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    if (!merchant) return result(false, 'MERCHANT_NOT_FOUND');
-    if (!isMoney(input.amount, false)) return result(false, 'INVALID_AMOUNT');
-    if (!isSafeId(input.requestId)) return result(false, 'INVALID_REQUEST_ID');
-    if (input.remark !== undefined && !isSafeString(input.remark, MAX_NOTES_LENGTH, false)) return result(false, 'INVALID_REMARK');
-    const existing = state.orders.find(item => item.requestId === input.requestId && item.parkId === input.parkId);
-    if (existing) return successful('ALREADY_COLLECTED', { order: existing, transaction: state.transactions.find(item => item.orderId === existing.id) || null }, true);
-    const cents = toCents(input.amount);
-    if (toCents(owner.account.available) < cents) return result(false, 'INSUFFICIENT_BALANCE');
-    const allocations = allocateBatches(cents, owner);
-    if (!allocations) return result(false, 'INCONSISTENT_BATCH_BALANCE');
-    const config = state.merchantConfig[merchant.id] || { ratio: 1, refundWindowHours: 24 };
-    const time = now();
-    const user = state.users.find(item => item.id === input.userId && item.parkId === input.parkId);
-    const order = {
-      id: nextOrderId(merchant.id, merchant.name, time), parkId: input.parkId, userId: input.userId,
-      merchant: merchant.name, merchantId: merchant.id, amount: input.amount, time, status: 'paid',
-      refundDeadline: refundDeadlineAt(config.refundWindowHours), batchAllocations: allocations,
-      requestId: input.requestId, userSnapshot: deepClone(user), merchantSnapshot: deepClone(merchant),
-      settlementAmount: fromCents(Math.round(cents * config.ratio))
-    };
-    if (input.remark !== undefined) order.remark = input.remark;
-    changeBatchBalances(allocations, -1);
-    owner.account.available = fromCents(toCents(owner.account.available) - cents);
-    owner.account.total = fromCents(toCents(owner.account.total) - cents);
-    owner.account.consumed = fromCents(toCents(owner.account.consumed) + cents);
-    const transaction = { id: nextId('TC', state.transactions), parkId: input.parkId, userId: input.userId, merchantId: merchant.id, type: 'consume', title: merchant.name + '消费', amount: -input.amount, merchant: merchant.name, orderId: order.id, requestId: input.requestId, time, status: 'success' };
-    state.orders.push(order);
-    state.transactions.push(transaction);
-    refreshLegacyWallet(owner);
-    return successful('PAYMENT_COLLECTED', { order, transaction });
-  }
-
-  function recordPaymentFailure(input) {
-    if (!isPlainObject(input) || !isSafeId(input.requestId) || !isMoney(input.amount, false)) return result(false, 'INVALID_PAYMENT');
-    const existing = state.orders.find(item => item.requestId === input.requestId && item.parkId === input.parkId);
-    if (existing) return successful('PAYMENT_FAILURE_ALREADY_RECORDED', existing, true);
-    const merchant = state.merchants.find(item => item.id === input.merchantId && item.parkId === input.parkId);
-    const user = state.users.find(item => item.id === input.userId && item.parkId === input.parkId);
-    if (!merchant || !user) return result(false, 'PAYMENT_PARTY_NOT_FOUND');
-    const time = now();
-    const order = { id: nextOrderId(merchant.id, merchant.name, time), parkId: input.parkId, userId: input.userId, merchant: merchant.name, merchantId: merchant.id, amount: input.amount, time, status: 'payment_failed', refundDeadline: refundDeadlineAt(0), requestId: input.requestId, userSnapshot: deepClone(user), merchantSnapshot: deepClone(merchant), settlementAmount: 0 };
-    if (input.remark !== undefined) order.remark = input.remark;
-    state.orders.push(order);
-    return successful('PAYMENT_FAILURE_RECORDED', order);
-  }
-
-  function refundConsume(orderId) {
-    if (typeof orderId !== 'string' || !orderId) return result(false, 'INVALID_ORDER_ID');
-    const order = state.orders.find(item => item.id === orderId);
-    if (!order) return result(false, 'ORDER_NOT_FOUND');
-    const existing = state.transactions.find(item => item.type === 'consume_refund' && item.orderId === orderId);
-    if (order.status === 'refunded' && existing) return successful('ALREADY_REFUNDED', existing, true);
-    if (order.status !== 'paid') return result(false, 'ORDER_NOT_REFUNDABLE');
-    const deadlineTime = typeof order.refundDeadline === 'string' ? new Date(order.refundDeadline.replace(' ', 'T')).getTime() : NaN;
-    if (!Number.isFinite(deadlineTime)) return result(false, 'REFUND_DEADLINE_INVALID');
-    if (deadlineTime < new Date().getTime()) return result(false, 'refund_expired');
-    const owner = ownerFrom(order);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    if (!isMoney(order.amount, false) || !validAllocations(order.batchAllocations, new Set(state.batches.map(item => item.id)), toCents(order.amount))) return result(false, 'INVALID_BATCH_ALLOCATIONS');
-    const canRestore = order.batchAllocations.every(allocation => {
-      const batch = state.batches.find(item => item.id === allocation.batchId);
-      return toCents(batch.remaining) + toCents(allocation.amount) <= toCents(batch.amount);
-    });
-    if (!canRestore) return result(false, 'INVALID_BATCH_BALANCE');
-
-    changeBatchBalances(order.batchAllocations, 1);
-    const amountCents = toCents(order.amount);
-    owner.account.total = fromCents(toCents(owner.account.total) + amountCents);
-    owner.account.available = fromCents(toCents(owner.account.available) + amountCents);
-    owner.account.consumed = fromCents(Math.max(0, toCents(owner.account.consumed) - amountCents));
-    order.status = 'refunded';
-    const transaction = { id: nextId('TF', state.transactions), parkId: owner.parkId, userId: owner.userId, merchantId: order.merchantId, type: 'consume_refund', title: '消费退款', amount: order.amount, merchant: order.merchant, orderId, time: now(), status: 'success' };
-    state.transactions.push(transaction);
-    refreshLegacyWallet(owner);
-    return successful('CONSUME_REFUNDED', transaction);
-  }
-
-  function applyBalanceRefund(notes, ownerInput) {
-    if (typeof notes !== 'string' || !notes.trim()) return result(false, 'INVALID_NOTES');
-    const normalizedNotes = notes.trim();
-    const owner = ownerFrom(ownerInput);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    const existing = state.refundRequests.find(item => item.notes === normalizedNotes && item.parkId === owner.parkId && item.userId === owner.userId);
-    if (existing) return successful('ALREADY_APPLIED', existing, true);
-    if (state.refundRequests.some(item => item.parkId === owner.parkId && item.userId === owner.userId && ['pending_review', 'reviewing', 'arrived', 'manual_processing'].includes(item.status))) return result(false, 'ACTIVE_REFUND_EXISTS');
-    const amountCents = toCents(owner.account.available);
-    if (amountCents <= 0 || toCents(owner.account.frozen) !== 0) return result(false, 'NO_REFUNDABLE_BALANCE');
-    const allocations = allocateBatches(amountCents, owner);
-    if (!allocations) return result(false, 'INCONSISTENT_BATCH_BALANCE');
-    owner.account.available = 0;
-    owner.account.frozen = fromCents(amountCents);
-    const request = { id: nextId('RR', state.refundRequests), parkId: owner.parkId, userId: owner.userId, amount: fromCents(amountCents), frozenAmount: fromCents(amountCents), batchAllocations: allocations, createdAt: now(), status: 'pending_review', notes: normalizedNotes };
-    state.refundRequests.push(request);
-    refreshLegacyWallet(owner);
-    return successful('BALANCE_REFUND_APPLIED', request);
-  }
-
-  function startRefundReview(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    if (request.status === 'reviewing') return successful('ALREADY_REVIEWING', request, true);
-    if (request.status !== 'pending_review') return result(false, 'INVALID_REFUND_TRANSITION');
-    request.status = 'reviewing';
-    return successful('REFUND_REVIEW_STARTED', request);
-  }
-
-  function markRefundArrived(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    if (request.status === 'arrived') return successful('ALREADY_ARRIVED', request, true);
-    if (request.status === 'manual_processing' && request.compatStatus !== undefined) return result(false, 'INVALID_REFUND_TRANSITION');
-    if (request.status !== 'reviewing' && request.status !== 'manual_processing') return result(false, 'INVALID_REFUND_TRANSITION');
-    request.status = 'arrived';
-    return successful('REFUND_ARRIVED', request);
-  }
-
-  function approveParkRefund(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    if (request.status === 'manual_processing' && request.compatStatus === 'park_approved' || request.status === 'completed') return successful('ALREADY_APPROVED', request, true);
-    if (request.status !== 'pending_review') return result(false, 'REFUND_NOT_APPROVABLE');
-    request.status = 'manual_processing';
-    request.compatStatus = 'park_approved';
-    return successful('PARK_REFUND_APPROVED', request);
-  }
-
-  function rejectParkRefund(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    const owner = ownerFrom(request);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    if (request.status === 'rejected') return successful('ALREADY_REJECTED', request, true);
-    if (request.status !== 'pending_review' && request.status !== 'reviewing') return result(false, 'REFUND_NOT_REJECTABLE');
-    const frozenCents = toCents(request.frozenAmount);
-    if (toCents(owner.account.frozen) < frozenCents) return result(false, 'INVALID_FROZEN_BALANCE');
-    owner.account.frozen = fromCents(toCents(owner.account.frozen) - frozenCents);
-    owner.account.available = fromCents(toCents(owner.account.available) + frozenCents);
-    request.status = 'rejected';
-    refreshLegacyWallet(owner);
-    return successful('PARK_REFUND_REJECTED', request);
-  }
-
-  function completeBalanceRefund(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    const existing = state.transactions.find(item => item.type === 'balance_refund' && item.refundId === id);
-    if (request.status === 'completed' && existing) return successful('ALREADY_COMPLETED', existing, true);
-    if (request.status !== 'arrived' && !(request.status === 'manual_processing' && request.compatStatus === 'park_approved')) return result(false, 'REFUND_NOT_COMPLETABLE');
-    const owner = ownerFrom(request);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    const frozenCents = toCents(request.frozenAmount);
-    if (frozenCents <= 0 || toCents(owner.account.frozen) < frozenCents || toCents(owner.account.total) < frozenCents) return result(false, 'INVALID_FROZEN_BALANCE');
-    const allocationsValid = validAllocations(request.batchAllocations, new Set(state.batches.map(item => item.id)), frozenCents);
-    const balancesValid = allocationsValid && request.batchAllocations.every(allocation => {
-      const batch = state.batches.find(item => item.id === allocation.batchId);
-      return toCents(batch.remaining) >= toCents(allocation.amount);
-    });
-    if (!balancesValid) return result(false, 'INVALID_BATCH_ALLOCATIONS');
-
-    changeBatchBalances(request.batchAllocations, -1);
-    owner.account.total = fromCents(toCents(owner.account.total) - frozenCents);
-    owner.account.frozen = fromCents(toCents(owner.account.frozen) - frozenCents);
-    request.status = 'completed';
-    const transaction = { id: nextId('TB', state.transactions), parkId: owner.parkId, userId: owner.userId, type: 'balance_refund', title: '余额退款', amount: -request.frozenAmount, refundId: id, time: now(), status: 'success' };
-    state.transactions.push(transaction);
-    refreshLegacyWallet(owner);
-    return successful('BALANCE_REFUND_COMPLETED', transaction);
-  }
-
-  function markRefundManualProcessing(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    if (request.status === 'manual_processing' && request.compatStatus === undefined) return successful('ALREADY_MANUAL', request, true);
-    if (request.status === 'manual_processing' && request.compatStatus === 'park_approved') {
-      delete request.compatStatus;
-      return successful('REFUND_MARKED_MANUAL', request);
-    }
-    if (request.status !== 'reviewing' && request.status !== 'arrived') return result(false, 'REFUND_NOT_MANUALABLE');
-    request.status = 'manual_processing';
-    return successful('REFUND_MARKED_MANUAL', request);
-  }
-
-  function resumeRefundReview(id, context) {
-    const request = state.refundRequests.find(item => item.id === id);
-    if (!request) return result(false, 'REFUND_NOT_FOUND');
-    if (!reviewOwnerContext(request, context)) return result(false, 'REFUND_OWNER_MISMATCH');
-    if (request.status === 'reviewing') return successful('ALREADY_REVIEWING', request, true);
-    if (request.status !== 'manual_processing' || request.compatStatus !== undefined) return result(false, 'INVALID_REFUND_TRANSITION');
-    request.status = 'reviewing';
-    return successful('REFUND_REVIEW_RESUMED', request);
-  }
-
-  function syncSettlements() {
-    const allocated = new Set();
-    state.pendingSettlements.forEach(item => item.orderIds.forEach(id => allocated.add(item.parkId + '|' + id)));
-    const candidates = state.orders.filter(order => order.status === 'paid' && !allocated.has(order.parkId + '|' + order.id));
-    const missingConfig = candidates.find(order => !state.merchantConfig[order.merchantId]);
-    if (missingConfig) return result(false, 'MERCHANT_CONFIG_NOT_FOUND', missingConfig);
-    if (candidates.length === 0) return successful('SETTLEMENTS_ALREADY_SYNCED', state.pendingSettlements, true);
-
-    const groups = new Map();
-    candidates.forEach(order => {
-      const config = state.merchantConfig[order.merchantId];
-      const key = order.parkId + '|' + order.merchantId + '|' + config.ratio;
-      if (!groups.has(key)) groups.set(key, { parkId: order.parkId, merchantId: order.merchantId, config, orders: [] });
-      groups.get(key).orders.push(order);
-    });
-    groups.forEach(group => {
-      let settlement = state.pendingSettlements.find(item => item.parkId === group.parkId && item.merchantId === group.merchantId && item.ratio === group.config.ratio && item.status === 'pending');
-      if (!settlement) {
-        settlement = { id: nextId('S', state.pendingSettlements), parkId: group.parkId, merchantId: group.merchantId, orderIds: [], total: 0, merchantShare: 0, parkShare: 0, ratio: group.config.ratio, cycle: group.config.cycle, status: 'pending', paymentReference: null, paymentRecordedAt: null, failReason: null };
-        state.pendingSettlements.push(settlement);
-      }
-      const addedCents = group.orders.reduce((sum, order) => sum + toCents(order.amount), 0);
-      const totalCents = toCents(settlement.total) + addedCents;
-      const merchantCents = Math.round(totalCents * settlement.ratio);
-      settlement.orderIds.push.apply(settlement.orderIds, group.orders.map(order => order.id));
-      settlement.total = fromCents(totalCents);
-      settlement.merchantShare = fromCents(merchantCents);
-      settlement.parkShare = fromCents(totalCents - merchantCents);
-    });
-    return successful('SETTLEMENTS_SYNCED', state.pendingSettlements);
-  }
-
-  function recordSettlementPaymentResult(settlementId, outcome, paymentReference, failReason) {
-    const settlement = state.pendingSettlements.find(item => item.id === settlementId);
-    if (!settlement) return result(false, 'SETTLEMENT_NOT_FOUND');
-    if (outcome !== 'success' && outcome !== 'failed') return result(false, 'INVALID_SETTLEMENT_OUTCOME');
-    const normalizedReference = typeof paymentReference === 'string' && paymentReference.trim() ? paymentReference.trim() : null;
-    const normalizedReason = typeof failReason === 'string' && failReason.trim() ? failReason.trim() : null;
-    if (outcome === 'success' && (!normalizedReference || !isSafeText(normalizedReference))) return result(false, 'PAYMENT_REFERENCE_REQUIRED');
-    if (outcome === 'failed' && (!normalizedReason || !isSafeString(normalizedReason, MAX_NOTES_LENGTH, false))) return result(false, 'FAIL_REASON_REQUIRED');
-    const expectedReference = outcome === 'success' ? normalizedReference : null;
-    const expectedReason = outcome === 'failed' ? normalizedReason : null;
-    if (settlement.status === 'success' || settlement.status === 'failed') {
-      if (settlement.status === outcome && settlement.paymentReference === expectedReference && settlement.failReason === expectedReason) return successful('SETTLEMENT_RESULT_ALREADY_RECORDED', settlement, true);
-      return result(false, 'SETTLEMENT_RESULT_CONFLICT');
-    }
-    if (settlement.status !== 'pending' && settlement.status !== 'processing') return result(false, 'SETTLEMENT_RESULT_CONFLICT');
-    settlement.status = outcome;
-    settlement.paymentReference = expectedReference;
-    settlement.failReason = expectedReason;
-    settlement.paymentRecordedAt = now();
-    return successful('SETTLEMENT_RESULT_RECORDED', settlement);
-  }
-
-  function markReconciliationChecked(rowId) {
-    const row = state.reconciliationRows.find(item => item.id === rowId);
-    if (!row) return result(false, 'RECONCILIATION_NOT_FOUND');
-    if (row.checked) return successful('RECONCILIATION_ALREADY_CHECKED', row, true);
-    row.checked = true;
-    row.checkedAt = now();
-    return successful('RECONCILIATION_CHECKED', row);
-  }
-
-  function invoiceOwner(input) {
-    return ownerFrom(input, 'park-001', 'U001');
-  }
-
-  function matchesOptionalOwner(entity, context) {
-    if (context === undefined) return true;
-    if (!context || typeof context !== 'object' || Array.isArray(context)) return false;
-    return (context.parkId === undefined || context.parkId === entity.parkId) &&
-      (context.userId === undefined || context.userId === entity.userId);
-  }
-
-  function reviewOwnerContext(request, context) {
-    if (context === undefined) return true;
-    if (!context || typeof context !== 'object' || Array.isArray(context)) return false;
-    return (context.parkId === undefined || context.parkId === request.parkId) &&
-      (context.userId === undefined || context.userId === request.userId);
-  }
-
-  function validateInvoiceTitle(input) {
-    if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
-    return ['name', 'taxId', 'address', 'phone', 'bank', 'bankAccount'].every(key => typeof input[key] === 'string' && input[key].length <= MAX_TEXT_LENGTH && input[key].trim() && !/[<>]/.test(input[key]));
-  }
-
-  function createInvoiceTitle(input) {
-    if (!validateInvoiceTitle(input)) return result(false, 'INVALID_INVOICE_TITLE');
-    const owner = invoiceOwner(input);
-    if (!owner.account) return result(false, 'ACCOUNT_NOT_FOUND');
-    const title = { id: nextId('IT', state.invoiceTitles), parkId: owner.parkId, userId: owner.userId, name: input.name.trim(), taxId: input.taxId.trim(), address: input.address.trim(), phone: input.phone.trim(), bank: input.bank.trim(), bankAccount: input.bankAccount.trim(), isDefault: Boolean(input.isDefault), deletedAt: null };
-    if (title.isDefault || !state.invoiceTitles.some(item => item.parkId === owner.parkId && item.userId === owner.userId && !item.deletedAt)) state.invoiceTitles.forEach(item => { if (item.parkId === owner.parkId && item.userId === owner.userId) item.isDefault = false; });
-    if (!state.invoiceTitles.some(item => item.parkId === owner.parkId && item.userId === owner.userId && !item.deletedAt)) title.isDefault = true;
-    state.invoiceTitles.push(title);
-    return successful('INVOICE_TITLE_CREATED', title);
-  }
-
-  function updateInvoiceTitle(id, changes, context) {
-    const title = state.invoiceTitles.find(item => item.id === id && !item.deletedAt);
-    if (!title) return result(false, 'INVOICE_TITLE_NOT_FOUND');
-    if (!matchesOptionalOwner(title, context)) return result(false, 'INVOICE_TITLE_OWNER_MISMATCH');
-    const merged = Object.assign({}, title, changes);
-    if (!validateInvoiceTitle(merged)) return result(false, 'INVALID_INVOICE_TITLE');
-    ['name', 'taxId', 'address', 'phone', 'bank', 'bankAccount'].forEach(key => { title[key] = merged[key].trim(); });
-    if (changes.isDefault) setDefaultInvoiceTitle(id, context);
-    return successful('INVOICE_TITLE_UPDATED', title);
-  }
-
-  function deleteInvoiceTitle(id, context) {
-    const title = state.invoiceTitles.find(item => item.id === id);
-    if (!title) return result(false, 'INVOICE_TITLE_NOT_FOUND');
-    if (!matchesOptionalOwner(title, context)) return result(false, 'INVOICE_TITLE_OWNER_MISMATCH');
-    if (title.deletedAt) return successful('INVOICE_TITLE_ALREADY_DELETED', title, true);
-    title.deletedAt = now();
-    title.isDefault = false;
-    const replacement = state.invoiceTitles.find(item => item.parkId === title.parkId && item.userId === title.userId && !item.deletedAt);
-    if (replacement) replacement.isDefault = true;
-    return successful('INVOICE_TITLE_DELETED', title);
-  }
-
-  function setDefaultInvoiceTitle(id, context) {
-    const title = state.invoiceTitles.find(item => item.id === id && !item.deletedAt);
-    if (!title) return result(false, 'INVOICE_TITLE_NOT_FOUND');
-    if (!matchesOptionalOwner(title, context)) return result(false, 'INVOICE_TITLE_OWNER_MISMATCH');
-    state.invoiceTitles.forEach(item => { if (item.parkId === title.parkId && item.userId === title.userId) item.isDefault = item.id === id; });
-    return successful('DEFAULT_INVOICE_TITLE_SET', title);
-  }
-
-  function applyInvoice(input) {
-    if (!input || typeof input !== 'object' || Array.isArray(input) || !isSafeId(input.transactionId) || !isSafeId(input.titleId) || !isSafeId(input.requestId)) return result(false, 'INVALID_INVOICE_APPLICATION');
-    const existing = state.invoiceRecords.find(item => item.requestId === input.requestId);
-    if (existing) return successful('INVOICE_ALREADY_APPLIED', existing, true);
-    const transaction = state.transactions.find(item => item.id === input.transactionId && item.type === 'recharge');
-    const title = state.invoiceTitles.find(item => item.id === input.titleId && !item.deletedAt);
-    if (!transaction) return result(false, 'RECHARGE_NOT_FOUND');
-    if (!title || title.parkId !== transaction.parkId || title.userId !== transaction.userId) return result(false, 'INVOICE_TITLE_NOT_FOUND');
-    if (state.invoiceRecords.some(item => item.transactionId === transaction.id)) return result(false, 'INVOICE_ALREADY_EXISTS');
-    const record = { id: nextId('IR', state.invoiceRecords), parkId: transaction.parkId, userId: transaction.userId, transactionId: transaction.id, titleId: title.id, titleSnapshot: deepClone(title), amount: transaction.amount, status: 'pending', createdAt: now(), requestId: input.requestId };
-    state.invoiceRecords.push(record);
-    return successful('INVOICE_APPLIED', record);
-  }
-
-  function getInvoiceStatus(id) {
-    const record = state.invoiceRecords.find(item => item.id === id || item.transactionId === id || item.requestId === id);
-    return record ? successful('INVOICE_STATUS', record) : result(false, 'INVOICE_NOT_FOUND');
-  }
-
-  function reset() {
-    replaceState(defaults);
-    return save();
-  }
-
-  function resetForTests() {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (error) {
-      console.error('parkStateV2 reset failed:', error);
-    }
-    replaceState(defaults);
-    save();
-    return state;
-  }
-
   const selectors = {
     getParkById: id => state.parks.find(item => item.id === id) || null,
-    getUserById: (parkId, userId) => state.users.find(item => item.parkId === parkId && item.id === userId) || null,
-    getAccount: (parkId, userId) => state.accounts.find(item => item.parkId === parkId && item.userId === userId) || null,
-    getAccountsByPark: parkId => state.accounts.filter(item => item.parkId === parkId),
-    getOrdersByPark: parkId => state.orders.filter(item => item.parkId === parkId),
-    getRefundsByPark: parkId => state.refundRequests.filter(item => item.parkId === parkId),
-    getTransactionsByPark: parkId => state.transactions.filter(item => item.parkId === parkId),
-    getMerchantsByPark: parkId => state.merchants.filter(item => item.parkId === parkId),
-    getAccountStatistics: (parkId, range) => {
-      const month = formatDateTime(new Date()).slice(0, 7);
-      const accounts = state.accounts.filter(item => item.parkId === parkId);
-      const scoped = range === 'month' ? state.transactions.filter(item => item.parkId === parkId && item.time.slice(0, 7) === month) : state.transactions.filter(item => item.parkId === parkId);
-      const available = fromCents(accounts.reduce((sum, item) => sum + toCents(item.available), 0));
-      const frozen = fromCents(accounts.reduce((sum, item) => sum + toCents(item.frozen), 0));
-      const consumed = range === 'month'
-        ? fromCents(scoped.filter(item => item.type === 'consume').reduce((sum, item) => sum + Math.abs(toCents(item.amount)), 0) - scoped.filter(item => item.type === 'consume_refund').reduce((sum, item) => sum + toCents(item.amount), 0))
-        : fromCents(accounts.reduce((sum, item) => sum + toCents(item.consumed), 0));
-      return { accountCount: accounts.length, available, frozen, consumed, totalStored: fromCents(toCents(available) + toCents(frozen) + toCents(consumed)) };
+    getUserById: function (first, second) {
+      const userId = second || first;
+      return state.users.find(item => item.id === userId && (!second || item.homeParkId === first)) || null;
     },
-    getMerchantSettlementStatistics: (parkId, merchantId) => {
-      const month = formatDateTime(new Date()).slice(0, 7);
-      const orders = state.orders.filter(item => item.parkId === parkId && (!merchantId || item.merchantId === merchantId) && item.time.slice(0, 7) === month);
-      const paid = orders.filter(item => item.status === 'paid' || item.status === 'refunded');
-      const refunded = orders.filter(item => item.status === 'refunded');
-      const income = fromCents(paid.reduce((sum, item) => sum + toCents(item.amount), 0));
-      const refundAmount = fromCents(refunded.reduce((sum, item) => sum + toCents(item.amount), 0));
-      const settlementAmount = fromCents(paid.reduce((sum, item) => sum + toCents(item.settlementAmount === undefined ? item.amount * ((state.merchantConfig[item.merchantId] || { ratio: 1 }).ratio) : item.settlementAmount), 0));
-      return { orderCount: paid.length, income, settlementAmount, refundCount: refunded.length, refundAmount };
+    getAccountByUser: userId => state.accounts.find(item => item.userId === userId) || null,
+    getEnterpriseById: enterpriseId => state.enterprises.find(item => item.id === enterpriseId) || null,
+    getEnterpriseBalance: (userId, enterpriseId) => {
+      const account = state.accounts.find(item => item.userId === userId);
+      return account ? account.enterpriseBalances.find(item => item.enterpriseId === enterpriseId) || null : null;
+    },
+    getOrdersByConsumePark: parkId => state.orders.filter(item => item.consumeParkId === parkId),
+    getRechargeBatchesByEnterprise: enterpriseId => state.rechargeBatches.filter(item => item.enterpriseId === enterpriseId),
+    getMerchantsByPark: parkId => state.merchants.filter(item => item.parkId === parkId)
+  };
+
+  function nowText() {
+    return new Date().toISOString();
+  }
+
+  function findRechargeBatchByRequestId(requestId) {
+    return state.rechargeBatches.find(item => item.requestId === requestId) || null;
+  }
+
+  function validateEnterpriseRechargeItem(enterprise, item, seenUserIds) {
+    const errors = [];
+    if (!isPlainObject(item)) return ['invalid_item'];
+    if (!isSafeId(item.userId)) errors.push('invalid_user_id');
+    else {
+      if (seenUserIds.has(item.userId)) errors.push('duplicate_user');
+      seenUserIds.add(item.userId);
+      const account = selectors.getAccountByUser(item.userId);
+      if (!enterprise.employeeUserIds.includes(item.userId) || !account || account.status !== 'active' ||
+        !account.enterpriseBalances.some(balance => balance.enterpriseId === enterprise.id)) errors.push('employee_not_eligible');
     }
+    if (!isMoney(item.amount, false)) errors.push('invalid_amount');
+    if (Object.prototype.hasOwnProperty.call(item, 'enterpriseId') && item.enterpriseId !== enterprise.id) errors.push('enterprise_mismatch');
+    return errors.length ? errors : ['valid'];
+  }
+
+  function validateEnterpriseRechargeItems(enterprise, items) {
+    if (!Array.isArray(items) || items.length === 0) return false;
+    const seenUserIds = new Set();
+    return items.every(item => {
+      const validationResult = validateEnterpriseRechargeItem(enterprise, item, seenUserIds);
+      return validationResult.length === 1 && validationResult[0] === 'valid';
+    });
+  }
+
+  function rechargePersonalAction(input) {
+    if (!isPlainObject(input)) return result(false, 'VALIDATION_FAILED');
+    const existing = state.transactions.find(item => item.type === 'personal_recharge' && item.requestId === input.requestId);
+    if (existing) {
+      const matchingReceipts = state.invoiceRecords.filter(item =>
+        item.type === 'recharge_receipt' && item.sourceId === existing.id &&
+        item.userId === existing.userId && item.enterpriseId === null &&
+        toCents(item.amount) === toCents(existing.amount)
+      );
+      return matchingReceipts.length === 1 && isValidState(state)
+        ? successful('PERSONAL_RECHARGE_SUCCEEDED', existing, true)
+        : result(false, 'VALIDATION_FAILED');
+    }
+    const account = selectors.getAccountByUser(input.userId);
+    if (!isSafeId(input.userId) || !isSafeId(input.parkId) || !isSafeId(input.requestId) || !isMoney(input.amount, false) ||
+      !selectors.getParkById(input.parkId) || !account || account.status !== 'active') {
+      return result(false, 'VALIDATION_FAILED');
+    }
+
+    const transaction = {
+      id: nextId('TX-PR-', state.transactions),
+      type: 'personal_recharge',
+      userId: input.userId,
+      enterpriseId: null,
+      parkId: input.parkId,
+      batchId: null,
+      amount: input.amount,
+      paymentChannel: 'online',
+      requestId: input.requestId,
+      createdAt: nowText()
+    };
+    account.personal.available = fromCents(toCents(account.personal.available) + toCents(input.amount));
+    const persistedTransaction = deepClone(transaction);
+    state.transactions.push(persistedTransaction);
+    state.invoiceRecords.push(deepClone({
+      id: nextId('INV-RC-', state.invoiceRecords),
+      type: 'recharge_receipt',
+      sourceId: transaction.id,
+      userId: input.userId,
+      enterpriseId: null,
+      amount: input.amount,
+      paymentChannel: transaction.paymentChannel,
+      createdAt: transaction.createdAt
+    }));
+    return successful('PERSONAL_RECHARGE_SUCCEEDED', persistedTransaction);
+  }
+
+  function createEnterpriseRechargeAction(input) {
+    if (!isPlainObject(input)) return result(false, 'BATCH_VALIDATION_FAILED');
+    const existing = isSafeId(input.requestId) ? findRechargeBatchByRequestId(input.requestId) : null;
+    if (existing) {
+      if (existing.validationStatus === 'failed') {
+        return Object.assign(result(false, 'BATCH_VALIDATION_FAILED', existing), { persistOnFailure: false });
+      }
+      const validationCode = existing.postingStatus === 'succeeded' ? validateBatchForPosting(existing) : null;
+      return !validationCode && isValidState(state)
+        ? successful('RECHARGE_BATCH_CREATED', existing, true)
+        : result(false, validationCode || 'BATCH_VALIDATION_FAILED');
+    }
+    const enterprise = selectors.getEnterpriseById(input.enterpriseId);
+    if (!isSafeId(input.enterpriseId) || !isSafeId(input.rechargeParkId) || !isSafeId(input.requestId) ||
+      !['online', 'offline'].includes(input.method) || !enterprise || enterprise.status !== 'active' ||
+      !selectors.getParkById(input.rechargeParkId) || !Array.isArray(input.items) || input.items.length === 0) {
+      return result(false, 'BATCH_VALIDATION_FAILED');
+    }
+
+    const seenUserIds = new Set();
+    const itemRecords = input.items.map(item => {
+      const validationResult = validateEnterpriseRechargeItem(enterprise, item, seenUserIds);
+      const isObject = isPlainObject(item);
+      return {
+        userId: isObject && isSafeId(item.userId) ? item.userId : null,
+        amount: isObject && isMoney(item.amount, false) ? item.amount : null,
+        rawItem: jsonSafeClone(item),
+        validationResult
+      };
+    });
+    const validationFailed = itemRecords.some(item => !(item.validationResult.length === 1 && item.validationResult[0] === 'valid'));
+    const totalCents = itemRecords.reduce((sum, item) => sum + (isMoney(item.amount, false) ? toCents(item.amount) : 0), 0);
+    const batch = {
+      id: nextId('RB-', state.rechargeBatches),
+      enterpriseId: enterprise.id,
+      rechargeParkId: input.rechargeParkId,
+      method: input.method,
+      requestId: input.requestId,
+      totalAmount: fromCents(totalCents),
+      status: validationFailed ? 'validation_failed' : (input.method === 'online' ? 'pending_payment' : 'pending_confirmation'),
+      paymentStatus: 'pending',
+      postingStatus: 'pending',
+      validationStatus: validationFailed ? 'failed' : 'passed',
+      paymentReference: null,
+      voucher: null,
+      createdAt: nowText(),
+      postedAt: null
+    };
+    const persistedBatch = deepClone(batch);
+    state.rechargeBatches.push(persistedBatch);
+    itemRecords.forEach(item => {
+      const itemRecord = {
+        id: nextId('RBI-', state.rechargeBatchItems),
+        batchId: batch.id,
+        enterpriseId: enterprise.id,
+        userId: item.userId,
+        amount: item.amount,
+        validationResult: item.validationResult,
+        postingStatus: validationFailed ? 'not_posted' : 'pending'
+      };
+      if (validationFailed) itemRecord.rawItem = item.rawItem;
+      state.rechargeBatchItems.push(deepClone(itemRecord));
+    });
+    if (validationFailed) {
+      return Object.assign(result(false, 'BATCH_VALIDATION_FAILED', persistedBatch), { persistOnFailure: true });
+    }
+    return successful('RECHARGE_BATCH_CREATED', persistedBatch);
+  }
+
+  function validateBatchForPosting(batch) {
+    if (!batch) return 'BATCH_NOT_FOUND';
+    if (batch.validationStatus !== 'passed') return 'BATCH_VALIDATION_FAILED';
+    if (batch.paymentStatus !== 'succeeded') return 'PAYMENT_REQUIRED';
+    if (batch.method === 'online' && !isSafeText(batch.paymentReference)) return 'PAYMENT_REFERENCE_REQUIRED';
+    if (batch.method === 'offline' && !isSafeText(batch.voucher)) return 'VOUCHER_REQUIRED';
+    const enterprise = selectors.getEnterpriseById(batch.enterpriseId);
+    const items = state.rechargeBatchItems.filter(item => item.batchId === batch.id);
+    if (!enterprise || enterprise.status !== 'active' || !selectors.getParkById(batch.rechargeParkId) ||
+      !validateEnterpriseRechargeItems(enterprise, items)) return 'BATCH_VALIDATION_FAILED';
+    const totalCents = items.reduce((sum, item) => sum + toCents(item.amount), 0);
+    return totalCents === toCents(batch.totalAmount) ? null : 'BATCH_VALIDATION_FAILED';
+  }
+
+  function postRechargeBatchAction(batchId) {
+    const batch = state.rechargeBatches.find(item => item.id === batchId) || null;
+    const validationCode = validateBatchForPosting(batch);
+    if (validationCode) return result(false, validationCode);
+    if (batch.postingStatus === 'succeeded') {
+      return isValidState(state)
+        ? successful('RECHARGE_BATCH_POSTED', batch, true)
+        : result(false, 'BATCH_VALIDATION_FAILED');
+    }
+
+    const items = state.rechargeBatchItems.filter(item => item.batchId === batch.id);
+    const postedAt = nowText();
+    items.forEach(item => {
+      const balance = selectors.getEnterpriseBalance(item.userId, batch.enterpriseId);
+      balance.available = fromCents(toCents(balance.available) + toCents(item.amount));
+      state.transactions.push(deepClone({
+        id: nextId('TX-ER-', state.transactions),
+        type: 'enterprise_recharge',
+        userId: item.userId,
+        enterpriseId: batch.enterpriseId,
+        parkId: batch.rechargeParkId,
+        batchId: batch.id,
+        amount: item.amount,
+        requestId: batch.requestId + '-' + item.userId,
+        createdAt: postedAt
+      }));
+      item.postingStatus = 'succeeded';
+    });
+    batch.postingStatus = 'succeeded';
+    batch.status = 'succeeded';
+    batch.postedAt = postedAt;
+    if (!state.invoiceRecords.some(item => item.type === 'recharge_receipt' && item.sourceId === batch.id)) {
+      state.invoiceRecords.push(deepClone({
+        id: nextId('INV-RC-', state.invoiceRecords),
+        type: 'recharge_receipt',
+        sourceId: batch.id,
+        userId: null,
+        enterpriseId: batch.enterpriseId,
+        amount: batch.totalAmount,
+        createdAt: postedAt
+      }));
+    }
+    return successful('RECHARGE_BATCH_POSTED', batch);
+  }
+
+  function confirmEnterpriseOnlinePaymentAction(batchId, paymentReference) {
+    const batch = state.rechargeBatches.find(item => item.id === batchId) || null;
+    if (!batch) return result(false, 'BATCH_NOT_FOUND');
+    if (batch.method !== 'online') return result(false, 'METHOD_MISMATCH');
+    if (!isSafeText(paymentReference)) return result(false, 'PAYMENT_REFERENCE_REQUIRED');
+    if (batch.postingStatus === 'succeeded') {
+      const validationCode = validateBatchForPosting(batch);
+      return !validationCode && isValidState(state)
+        ? successful('ONLINE_PAYMENT_CONFIRMED', batch, true)
+        : result(false, validationCode || 'BATCH_VALIDATION_FAILED');
+    }
+    const originalPaymentStatus = batch.paymentStatus;
+    const originalPaymentReference = batch.paymentReference;
+    batch.paymentStatus = 'succeeded';
+    batch.paymentReference = paymentReference;
+    const validationCode = validateBatchForPosting(batch);
+    batch.paymentStatus = originalPaymentStatus;
+    batch.paymentReference = originalPaymentReference;
+    if (validationCode) return result(false, validationCode);
+    batch.paymentStatus = 'succeeded';
+    batch.paymentReference = paymentReference;
+    return postRechargeBatchAction(batch.id);
+  }
+
+  function confirmOfflineRechargeAction(batchId, voucher) {
+    const batch = state.rechargeBatches.find(item => item.id === batchId) || null;
+    if (!batch) return result(false, 'BATCH_NOT_FOUND');
+    if (batch.method !== 'offline') return result(false, 'METHOD_MISMATCH');
+    if (!isSafeText(voucher)) return result(false, 'VOUCHER_REQUIRED');
+    if (batch.postingStatus === 'succeeded') {
+      const validationCode = validateBatchForPosting(batch);
+      return !validationCode && isValidState(state)
+        ? successful('OFFLINE_RECHARGE_CONFIRMED', batch, true)
+        : result(false, validationCode || 'BATCH_VALIDATION_FAILED');
+    }
+    const originalPaymentStatus = batch.paymentStatus;
+    const originalVoucher = batch.voucher;
+    batch.paymentStatus = 'succeeded';
+    batch.voucher = voucher;
+    const validationCode = validateBatchForPosting(batch);
+    batch.paymentStatus = originalPaymentStatus;
+    batch.voucher = originalVoucher;
+    if (validationCode) return result(false, validationCode);
+    batch.paymentStatus = 'succeeded';
+    batch.voucher = voucher;
+    return postRechargeBatchAction(batch.id);
+  }
+
+  function traceRechargeParkIds(userId, enterpriseDeductions, personalAmount, homeParkId) {
+    const parkIds = [];
+    enterpriseDeductions.forEach(deduction => {
+      state.transactions.forEach(transaction => {
+        if (transaction.type === 'enterprise_recharge' && transaction.userId === userId &&
+          transaction.enterpriseId === deduction.enterpriseId && !parkIds.includes(transaction.parkId)) {
+          parkIds.push(transaction.parkId);
+        }
+      });
+    });
+    if (personalAmount > 0) {
+      state.transactions.forEach(transaction => {
+        if (transaction.type === 'personal_recharge' && transaction.userId === userId && !parkIds.includes(transaction.parkId)) {
+          parkIds.push(transaction.parkId);
+        }
+      });
+    }
+    if (parkIds.length === 0 && homeParkId) parkIds.push(homeParkId);
+    return parkIds;
+  }
+
+  function collectPaymentAction(input) {
+    if (!isPlainObject(input) || !isSafeId(input.userId) || !isSafeId(input.merchantId) ||
+      !isSafeId(input.requestId) || !isMoney(input.amount, false)) return result(false, 'VALIDATION_FAILED');
+
+    const existing = state.orders.find(item => item.requestId === input.requestId) || null;
+    if (existing) {
+      return isValidState(state)
+        ? successful('PAYMENT_SUCCEEDED', { order: existing }, true)
+        : result(false, 'VALIDATION_FAILED');
+    }
+
+    const account = selectors.getAccountByUser(input.userId);
+    const merchant = state.merchants.find(item => item.id === input.merchantId) || null;
+    if (!account || account.status !== 'active' || !merchant || merchant.status !== 'active') {
+      return result(false, 'VALIDATION_FAILED');
+    }
+
+    const amountCents = toCents(input.amount);
+    const enterpriseBalance = account.enterpriseBalances[0] || null;
+    const enterpriseCents = enterpriseBalance ? Math.min(toCents(enterpriseBalance.available), amountCents) : 0;
+    const personalCents = amountCents - enterpriseCents;
+    if (toCents(account.personal.available) < personalCents) return result(false, 'INSUFFICIENT_BALANCE');
+
+    const enterpriseDeductions = enterpriseCents > 0
+      ? [{ enterpriseId: enterpriseBalance.enterpriseId, amount: fromCents(enterpriseCents) }]
+      : [];
+    const personalAmount = fromCents(personalCents);
+    const createdAt = nowText();
+    const order = {
+      id: nextId('ORD-', state.orders),
+      requestId: input.requestId,
+      userId: input.userId,
+      merchantId: merchant.id,
+      amount: input.amount,
+      enterpriseDeductions,
+      personalAmount,
+      rechargeParkIds: traceRechargeParkIds(input.userId, enterpriseDeductions, personalAmount, account.homeParkId),
+      consumeParkId: merchant.parkId,
+      paymentStatus: 'paid',
+      invoiceStatus: 'not_applied',
+      refundStatus: 'none',
+      settlementStatus: 'pending',
+      createdAt
+    };
+
+    if (enterpriseCents > 0) {
+      const before = toCents(enterpriseBalance.available);
+      enterpriseBalance.available = fromCents(before - enterpriseCents);
+      enterpriseBalance.consumed = fromCents(toCents(enterpriseBalance.consumed) + enterpriseCents);
+      state.transactions.push({
+        id: nextId('TX-EC-', state.transactions),
+        type: 'enterprise_consume',
+        userId: input.userId,
+        enterpriseId: enterpriseBalance.enterpriseId,
+        orderId: order.id,
+        amount: -fromCents(enterpriseCents),
+        rechargeParkIds: order.rechargeParkIds.slice(),
+        consumeParkId: merchant.parkId,
+        createdAt
+      });
+    }
+    if (personalCents > 0) {
+      const before = toCents(account.personal.available);
+      account.personal.available = fromCents(before - personalCents);
+      account.personal.consumed = fromCents(toCents(account.personal.consumed) + personalCents);
+      state.transactions.push({
+        id: nextId('TX-PC-', state.transactions),
+        type: 'personal_consume',
+        userId: input.userId,
+        enterpriseId: null,
+        orderId: order.id,
+        amount: -personalAmount,
+        rechargeParkIds: order.rechargeParkIds.slice(),
+        consumeParkId: merchant.parkId,
+        createdAt
+      });
+    }
+    state.orders.push(order);
+    return successful('PAYMENT_SUCCEEDED', { order });
+  }
+
+  function findRefundByRequestId(requestId) {
+    return state.refundRequests.find(item => item.requestId === requestId) || null;
+  }
+
+  function applyPersonalRefundAction(input) {
+    if (!isPlainObject(input)) return result(false, 'VALIDATION_FAILED');
+    const existing = isSafeId(input.requestId) ? findRefundByRequestId(input.requestId) : null;
+    if (existing) {
+      return existing.type === 'personal_balance' && isValidState(state)
+        ? successful('PERSONAL_REFUND_APPLIED', existing, true)
+        : result(false, 'VALIDATION_FAILED');
+    }
+    const account = selectors.getAccountByUser(input.userId);
+    if (!isSafeId(input.userId) || !isSafeId(input.requestId) || !isMoney(input.amount, false) ||
+      !account || account.status !== 'active') return result(false, 'VALIDATION_FAILED');
+    if (toCents(account.personal.available) < toCents(input.amount)) {
+      return result(false, 'INSUFFICIENT_PERSONAL_BALANCE');
+    }
+    const rechargeSource = state.transactions.find(item =>
+      item.type === 'personal_recharge' && item.userId === input.userId && item.paymentChannel === 'online' &&
+      state.invoiceRecords.some(receipt =>
+        receipt.type === 'recharge_receipt' && receipt.sourceId === item.id &&
+        receipt.userId === item.userId && receipt.enterpriseId === null &&
+        receipt.paymentChannel === item.paymentChannel && toCents(receipt.amount) === toCents(item.amount)
+      )
+    ) || null;
+    if (!rechargeSource) return result(false, 'PERSONAL_RECHARGE_SOURCE_NOT_FOUND');
+    const originalPaymentChannel = rechargeSource.paymentChannel;
+
+    const amountCents = toCents(input.amount);
+    account.personal.available = fromCents(toCents(account.personal.available) - amountCents);
+    account.personal.frozen = fromCents(toCents(account.personal.frozen) + amountCents);
+    const refund = {
+      id: nextId('RF-PR-', state.refundRequests),
+      type: 'personal_balance',
+      userId: input.userId,
+      enterpriseId: null,
+      amount: input.amount,
+      originalPaymentChannel,
+      status: 'pending',
+      requestId: input.requestId,
+      createdAt: nowText()
+    };
+    state.refundRequests.push(refund);
+    return successful('PERSONAL_REFUND_APPLIED', refund);
+  }
+
+  function enterpriseRefundedCents(enterpriseId, userId, rechargeBatchId) {
+    return state.refundRequests.reduce((total, request) => {
+      if (request.type !== 'enterprise_balance' || request.enterpriseId !== enterpriseId || !Array.isArray(request.items)) return total;
+      return total + request.items.reduce((itemTotal, item) => {
+        return item.userId === userId && item.rechargeBatchId === rechargeBatchId
+          ? itemTotal + toCents(item.amount)
+          : itemTotal;
+      }, 0);
+    }, 0);
+  }
+
+  function applyEnterpriseRefundAction(input) {
+    if (!isPlainObject(input)) return result(false, 'VALIDATION_FAILED');
+    const existing = isSafeId(input.requestId) ? findRefundByRequestId(input.requestId) : null;
+    if (existing) {
+      return existing.type === 'enterprise_balance' && isValidState(state)
+        ? successful('ENTERPRISE_REFUND_APPLIED', existing, true)
+        : result(false, 'VALIDATION_FAILED');
+    }
+    const enterprise = selectors.getEnterpriseById(input.enterpriseId);
+    if (!isSafeId(input.enterpriseId) || !isSafeId(input.adminUserId) || !isSafeId(input.requestId) ||
+      !enterprise || enterprise.status !== 'active' || !Array.isArray(input.items) || input.items.length === 0) {
+      return result(false, 'VALIDATION_FAILED');
+    }
+    if (!enterprise.adminUserIds.includes(input.adminUserId)) return result(false, 'ADMIN_FORBIDDEN');
+
+    const requestedByBalance = new Map();
+    const requestedBySource = new Map();
+    const normalizedItems = [];
+    for (const item of input.items) {
+      if (!isPlainObject(item) || !isSafeId(item.userId) || !isSafeId(item.rechargeBatchId) || !isMoney(item.amount, false) ||
+        !enterprise.employeeUserIds.includes(item.userId)) return result(false, 'EMPLOYEE_FORBIDDEN');
+      const batch = state.rechargeBatches.find(candidate => candidate.id === item.rechargeBatchId) || null;
+      const batchItem = state.rechargeBatchItems.find(candidate => candidate.batchId === item.rechargeBatchId &&
+        candidate.enterpriseId === enterprise.id && candidate.userId === item.userId) || null;
+      if (!batch || batch.enterpriseId !== enterprise.id || batch.postingStatus !== 'succeeded' ||
+        !batchItem || batchItem.postingStatus !== 'succeeded') return result(false, 'RECHARGE_BATCH_NOT_REFUNDABLE');
+
+      const sourceKey = item.rechargeBatchId + '|' + item.userId;
+      const sourceRequestedCents = (requestedBySource.get(sourceKey) || 0) + toCents(item.amount);
+      if (enterpriseRefundedCents(enterprise.id, item.userId, item.rechargeBatchId) + sourceRequestedCents > toCents(batchItem.amount)) {
+        return result(false, 'RECHARGE_BATCH_NOT_REFUNDABLE');
+      }
+      requestedBySource.set(sourceKey, sourceRequestedCents);
+      requestedByBalance.set(item.userId, (requestedByBalance.get(item.userId) || 0) + toCents(item.amount));
+      normalizedItems.push({
+        userId: item.userId,
+        amount: item.amount,
+        rechargeBatchId: item.rechargeBatchId,
+        refundDestination: batch.method === 'online' ? 'original_payer' : 'enterprise_payer_account'
+      });
+    }
+
+    for (const [userId, amountCents] of requestedByBalance) {
+      const balance = selectors.getEnterpriseBalance(userId, enterprise.id);
+      if (!balance || toCents(balance.available) < amountCents) return result(false, 'INSUFFICIENT_ENTERPRISE_BALANCE');
+    }
+    requestedByBalance.forEach((amountCents, userId) => {
+      const balance = selectors.getEnterpriseBalance(userId, enterprise.id);
+      balance.available = fromCents(toCents(balance.available) - amountCents);
+      balance.frozen = fromCents(toCents(balance.frozen) + amountCents);
+    });
+    const destinations = new Set(normalizedItems.map(item => item.refundDestination));
+    const refund = {
+      id: nextId('RF-ER-', state.refundRequests),
+      type: 'enterprise_balance',
+      userId: null,
+      enterpriseId: enterprise.id,
+      adminUserId: input.adminUserId,
+      items: normalizedItems,
+      amount: fromCents(normalizedItems.reduce((sum, item) => sum + toCents(item.amount), 0)),
+      refundDestination: destinations.size === 1 ? normalizedItems[0].refundDestination : 'mixed',
+      status: 'pending',
+      requestId: input.requestId,
+      createdAt: nowText()
+    };
+    state.refundRequests.push(refund);
+    return successful('ENTERPRISE_REFUND_APPLIED', refund);
+  }
+
+  function applyConsumeInvoiceAction(input) {
+    if (!isPlainObject(input)) return result(false, 'VALIDATION_FAILED');
+    const existing = isSafeId(input.requestId)
+      ? state.invoiceRecords.find(item => item.type === 'consume_invoice' && item.requestId === input.requestId) || null
+      : null;
+    if (existing) {
+      return isValidState(state)
+        ? successful('CONSUME_INVOICE_APPLIED', existing, true)
+        : result(false, 'VALIDATION_FAILED');
+    }
+    if (!isSafeId(input.orderId) || !isSafeId(input.applicantUserId) || !isSafeId(input.requestId) ||
+      !isPlainObject(input.title) || !isSafeText(input.title.name) || !isSafeText(input.title.taxId)) {
+      return result(false, 'VALIDATION_FAILED');
+    }
+    const order = state.orders.find(item => item.id === input.orderId) || null;
+    if (!order || order.paymentStatus !== 'paid' || order.refundStatus !== 'none') return result(false, 'ORDER_NOT_INVOICEABLE');
+    if (order.userId !== input.applicantUserId) return result(false, 'APPLICANT_FORBIDDEN');
+    if (order.invoiceStatus !== 'not_applied' || state.invoiceRecords.some(item => item.type === 'consume_invoice' && item.sourceId === order.id)) {
+      return result(false, 'INVOICE_ALREADY_APPLIED');
+    }
+
+    const invoice = {
+      id: nextId('INV-C-', state.invoiceRecords),
+      type: 'consume_invoice',
+      sourceId: order.id,
+      applicantUserId: input.applicantUserId,
+      merchantId: order.merchantId,
+      consumeParkId: order.consumeParkId,
+      titleSnapshot: deepClone(input.title),
+      amount: order.amount,
+      status: 'pending',
+      requestId: input.requestId,
+      createdAt: nowText()
+    };
+    state.invoiceRecords.push(invoice);
+    order.invoiceStatus = 'applied';
+    return successful('CONSUME_INVOICE_APPLIED', invoice);
+  }
+
+  function refundConsumeAction(orderId, merchantContext) {
+    const order = state.orders.find(item => item.id === orderId) || null;
+    if (!order || !isPlainObject(merchantContext) || !isSafeId(merchantContext.merchantId)) {
+      return result(false, 'VALIDATION_FAILED');
+    }
+    if (order.merchantId !== merchantContext.merchantId) return result(false, 'MERCHANT_FORBIDDEN');
+    if (order.refundStatus === 'refunded') {
+      return isValidState(state)
+        ? successful('CONSUME_REFUNDED', { order }, true)
+        : result(false, 'VALIDATION_FAILED');
+    }
+    if (order.settlementStatus === 'settling' || order.settlementStatus === 'settled') {
+      return result(false, 'SETTLED_REFUND_REQUIRES_REVERSAL');
+    }
+    if (order.paymentStatus !== 'paid' || order.refundStatus !== 'none') return result(false, 'ORDER_NOT_REFUNDABLE');
+
+    const account = selectors.getAccountByUser(order.userId);
+    if (!account) return result(false, 'VALIDATION_FAILED');
+    const createdAt = nowText();
+    order.enterpriseDeductions.forEach(deduction => {
+      const balance = selectors.getEnterpriseBalance(order.userId, deduction.enterpriseId);
+      const cents = toCents(deduction.amount);
+      balance.available = fromCents(toCents(balance.available) + cents);
+      balance.consumed = fromCents(toCents(balance.consumed) - cents);
+      state.transactions.push({
+        id: nextId('TX-ERF-', state.transactions),
+        type: 'enterprise_consume_refund',
+        userId: order.userId,
+        enterpriseId: deduction.enterpriseId,
+        orderId: order.id,
+        amount: deduction.amount,
+        rechargeParkIds: order.rechargeParkIds.slice(),
+        consumeParkId: order.consumeParkId,
+        createdAt
+      });
+    });
+    if (order.personalAmount > 0) {
+      const cents = toCents(order.personalAmount);
+      account.personal.available = fromCents(toCents(account.personal.available) + cents);
+      account.personal.consumed = fromCents(toCents(account.personal.consumed) - cents);
+      state.transactions.push({
+        id: nextId('TX-PRF-', state.transactions),
+        type: 'personal_consume_refund',
+        userId: order.userId,
+        enterpriseId: null,
+        orderId: order.id,
+        amount: order.personalAmount,
+        rechargeParkIds: order.rechargeParkIds.slice(),
+        consumeParkId: order.consumeParkId,
+        createdAt
+      });
+    }
+    order.refundStatus = 'refunded';
+    order.refundedAt = createdAt;
+    order.settlementStatus = 'cancelled';
+    return successful('CONSUME_REFUNDED', { order });
+  }
+
+  function syncSettlementsAction() {
+    const settledOrderIds = new Set();
+    state.pendingSettlements.forEach(settlement => {
+      if (Array.isArray(settlement.orderIds)) settlement.orderIds.forEach(orderId => settledOrderIds.add(orderId));
+    });
+    const groups = new Map();
+    state.orders.forEach(order => {
+      if (order.paymentStatus !== 'paid' || order.refundStatus !== 'none' || settledOrderIds.has(order.id)) return;
+      const key = order.consumeParkId + '|' + order.merchantId;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(order);
+    });
+    const created = [];
+    groups.forEach(orders => {
+      const merchantId = orders[0].merchantId;
+      const config = state.merchantConfig[merchantId];
+      const grossCents = orders.reduce((sum, order) => sum + toCents(order.amount), 0);
+      const settlementCents = Math.round(grossCents * config.ratio);
+      const settlement = {
+        id: nextId('SET-', state.pendingSettlements),
+        consumeParkId: orders[0].consumeParkId,
+        merchantId,
+        orderIds: orders.map(order => order.id),
+        grossAmount: fromCents(grossCents),
+        serviceFee: fromCents(grossCents - settlementCents),
+        settlementAmount: fromCents(settlementCents),
+        status: 'pending',
+        createdAt: nowText()
+      };
+      state.pendingSettlements.push(settlement);
+      orders.forEach(order => {
+        order.settlementStatus = 'settling';
+      });
+      created.push(settlement);
+    });
+    return successful('SETTLEMENTS_SYNCED', created);
+  }
+
+  const actions = {
+    rechargePersonal: transactional(rechargePersonalAction),
+    createEnterpriseRecharge: transactional(createEnterpriseRechargeAction),
+    postRechargeBatch: transactional(postRechargeBatchAction),
+    confirmEnterpriseOnlinePayment: transactional(confirmEnterpriseOnlinePaymentAction),
+    confirmOfflineRecharge: transactional(confirmOfflineRechargeAction),
+    collectPayment: transactional(collectPaymentAction),
+    applyPersonalRefund: transactional(applyPersonalRefundAction),
+    applyEnterpriseRefund: transactional(applyEnterpriseRefundAction),
+    applyConsumeInvoice: transactional(applyConsumeInvoiceAction),
+    refundConsume: transactional(refundConsumeAction),
+    syncSettlements: transactional(syncSettlementsAction)
   };
 
   load();
@@ -944,30 +1267,19 @@
     reset,
     resetForTests,
     reloadForTests: load,
-    actions: {
-      collectPayment: transactional(collectPayment),
-      recordPaymentFailure: transactional(recordPaymentFailure),
-      createPendingOrder: transactional(createPendingOrder),
-      recharge: transactional(recharge),
-      consume: transactional(consume),
-      refundConsume: transactional(refundConsume),
-      applyBalanceRefund: transactional(applyBalanceRefund),
-      startRefundReview: transactional(startRefundReview),
-      approveParkRefund: transactional(approveParkRefund),
-      rejectParkRefund: transactional(rejectParkRefund),
-      markRefundArrived: transactional(markRefundArrived),
-      completeBalanceRefund: transactional(completeBalanceRefund),
-      markRefundManualProcessing: transactional(markRefundManualProcessing),
-      resumeRefundReview: transactional(resumeRefundReview),
-      createInvoiceTitle: transactional(createInvoiceTitle),
-      updateInvoiceTitle: transactional(updateInvoiceTitle),
-      deleteInvoiceTitle: transactional(deleteInvoiceTitle),
-      setDefaultInvoiceTitle: transactional(setDefaultInvoiceTitle),
-      applyInvoice: transactional(applyInvoice),
-      getInvoiceStatus,
-      syncSettlements: transactional(syncSettlements),
-      recordSettlementPaymentResult: transactional(recordSettlementPaymentResult),
-      markReconciliationChecked: transactional(markReconciliationChecked)
+    actions,
+    internals: {
+      DATA_VERSION,
+      deepClone,
+      isMoney,
+      isValidState,
+      nextId,
+      result,
+      successful,
+      transactional,
+      toCents,
+      fromCents,
+      demoTime
     }
   };
 })();

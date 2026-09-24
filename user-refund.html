@@ -120,7 +120,7 @@
 
       function ownRequests() {
         return (parkState.state.refundRequests || []).filter(function (request) {
-          return request.parkId === owner.parkId && request.userId === owner.userId;
+          return request.type === 'personal_balance' && request.userId === owner.userId;
         });
       }
 
@@ -212,7 +212,7 @@
       }
 
       function refreshApply() {
-        const available = parkState.state.wallet.available;
+        const available = parkState.selectors.getAccountByUser(owner.userId).personal.available;
         els.amount.textContent = formatMoney(available);
         els.frozen.textContent = formatMoney(available);
         els.primaryAction.disabled = hasActiveRequest() || (currentView === 'apply' && available <= 0);
@@ -245,7 +245,7 @@
       }
 
       function submitRequest() {
-        const result = parkState.actions.applyBalanceRefund(els.reason.value.trim() || '用户申请注销');
+        const result = parkState.actions.applyPersonalRefund({ userId: owner.userId, amount: parkState.selectors.getAccountByUser(owner.userId).personal.available, requestId: 'USER-REFUND-' + Date.now() });
         if (!result.ok) {
           alert('申请失败：' + result.code);
           refreshApply();

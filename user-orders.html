@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>消费订单</title>
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    .app-content{padding:0 var(--page-padding) 24px}.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}.summary div,.order-card{background:var(--card-bg);border-radius:var(--radius-card);box-shadow:var(--shadow-card)}.summary div{padding:14px}.summary span{display:block;color:var(--muted);font-size:12px}.summary b{display:block;margin-top:5px;font-size:19px}.filter-chips{display:flex;gap:8px;overflow:auto;margin-bottom:14px}.filter-chips button{flex:0 0 auto;padding:8px 13px;border:0;border-radius:999px;background:#fff;color:var(--muted);font:inherit}.filter-chips button.active{background:var(--info-bg);color:var(--info);font-weight:700}.order-list{display:grid;gap:12px}.order-card{padding:16px}.order-head{display:flex;justify-content:space-between;gap:12px;padding-bottom:11px;border-bottom:1px solid var(--divider)}.order-head span{color:var(--muted);font-size:12px}.order-head b:last-child{font-size:19px}.order-row{display:flex;justify-content:space-between;gap:18px;padding-top:10px;font-size:13px}.order-row span{color:var(--muted)}.order-row b{text-align:right}.empty{padding:48px 18px;background:#fff;border-radius:var(--radius-card);text-align:center;color:var(--muted)}.empty a{display:inline-block;margin-top:14px;color:var(--info);text-decoration:none;font-weight:700}
+  </style>
+</head>
+<body>
+  <div class="mobile-page"><div class="phone-shell"><div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div><div class="app-shell">
+    <header class="topbar"><a href="user-wallet.html" class="back">‹</a><strong>消费订单</strong><span></span></header>
+    <main class="app-content">
+      <section class="summary"><div><span>订单数量</span><b id="order-count">0</b></div><div><span>消费总额</span><b id="order-total">¥0.00</b></div></section>
+      <div class="filter-chips" id="filters"><button class="active" data-filter="all">全部</button><button data-filter="paid">已支付</button><button data-filter="refunded">已退款</button></div>
+      <section class="order-list" id="order-list"></section>
+    </main><div class="home-bar"></div>
+  </div></div></div>
+  <script src="shared-state.js"></script>
+  <script>
+  (function(){
+    'use strict';
+    const state=parkState.state,userId=state.user.id,list=document.getElementById('order-list');let filter='all';
+    function money(v){return '¥'+formatMoney(Number(v)||0)}
+    function lookup(items,id){return (items.find(function(item){return item.id===id})||{}).name||id||'-'}
+    function status(order){return order.refundStatus==='refunded'?'已退款':order.paymentStatus==='paid'?'已支付':'支付失败'}
+    function add(parent,tag,text,className){const node=document.createElement(tag);if(className)node.className=className;node.textContent=text;parent.appendChild(node);return node}
+    function row(card,label,value){const wrap=document.createElement('div');wrap.className='order-row';add(wrap,'span',label);add(wrap,'b',value);card.appendChild(wrap)}
+    function enterpriseAmount(order){return (order.enterpriseDeductions||[]).reduce(function(sum,item){return sum+(Number(item.amount)||0)},0)}
+    function current(){return (state.orders||[]).filter(function(order){if(order.userId!==userId)return false;if(filter==='refunded')return order.refundStatus==='refunded';if(filter==='paid')return order.paymentStatus==='paid'&&order.refundStatus!=='refunded';return true}).sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt))})}
+    function render(){const orders=current();list.replaceChildren();document.getElementById('order-count').textContent=orders.length;document.getElementById('order-total').textContent=money(orders.reduce(function(sum,item){return sum+(Number(item.amount)||0)},0));if(!orders.length){const empty=add(list,'div','暂无消费订单','empty');const link=add(empty,'a','前往统一付款码');link.href='user-payment-code.html';return}orders.forEach(function(order){const card=document.createElement('article');card.className='order-card';const head=document.createElement('div');head.className='order-head';const title=document.createElement('div');add(title,'b',lookup(state.merchants,order.merchantId));add(title,'span',order.createdAt||'-');add(head,'b',money(order.amount));head.prepend(title);card.appendChild(head);row(card,'订单编号',order.id);row(card,'企业余额扣款',money(enterpriseAmount(order)));row(card,'个人余额扣款',money(order.personalAmount));row(card,'充值园区',(order.rechargeParkIds||[]).map(function(id){return lookup(state.parks,id)}).join('、')||'-');row(card,'消费园区',lookup(state.parks,order.consumeParkId));row(card,'订单状态',status(order));row(card,'发票状态',order.invoiceStatus==='applied'?'已申请':'未申请');list.appendChild(card)})}
+    document.getElementById('filters').addEventListener('click',function(event){if(event.target.tagName!=='BUTTON')return;filter=event.target.dataset.filter;Array.from(this.children).forEach(function(button){button.classList.toggle('active',button===event.target)});render()});render();
+  })();
+  </script>
+  <script src="shared-nav.js"></script>
+</body>
+</html>

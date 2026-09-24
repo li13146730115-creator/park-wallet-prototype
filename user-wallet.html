@@ -386,20 +386,19 @@
   <script>
     (function () {
       'use strict';
-      const wallet = parkState.state.wallet;
-      const allTransactions = parkState.state.transactions || [];
-      const transactions = allTransactions.filter(function (item) {
-        return item.type !== 'recharge';
-      });
+      const account = parkState.selectors.getAccountByUser('U001');
+      const wallet = account.personal;
+      const allTransactions = (parkState.state.transactions || []).filter(item => item.userId === 'U001');
+      const transactions = allTransactions;
 
-      document.getElementById('total-balance').textContent = formatMoney(wallet.total);
+      document.getElementById('total-balance').textContent = formatMoney(wallet.available + wallet.frozen);
       document.getElementById('available-balance').textContent = formatMoney(wallet.available);
       document.getElementById('frozen-balance').textContent = formatMoney(wallet.frozen);
 
       let totalRecharge = 0;
       let totalConsume = 0;
       allTransactions.forEach(tx => {
-        if (tx.type === 'recharge') totalRecharge += tx.amount;
+        if (tx.type === 'personal_recharge') totalRecharge += tx.amount;
         if (tx.type === 'consume') totalConsume += Math.abs(tx.amount);
       });
 
@@ -426,7 +425,7 @@
         balance_refund: 'icon-orange'
       };
 
-      const sortedTransactions = transactions.slice().sort((a, b) => new Date(b.time) - new Date(a.time));
+      const sortedTransactions = transactions.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       const filterState = { type: 'all', time: '7days', startDate: '', endDate: '' };
 
       const recentList = document.getElementById('recent-list');
@@ -445,7 +444,7 @@
       const dateClose = document.getElementById('custom-date-close');
 
       function parseTxDate(tx) {
-        return new Date(tx.time.replace(' ', 'T'));
+        return new Date(tx.createdAt);
       }
 
       function filterTransactions(txs) {
@@ -483,21 +482,30 @@
         const amountClass = isIncome ? 'amount-plus' : 'amount-minus';
         const sign = isIncome ? '+' : '';
         const bgClass = typeBgClass[tx.type] || 'icon-purple';
+        const label = typeLabels[tx.type] || tx.type;
 
         const item = document.createElement('div');
         item.className = 'tx-item';
         item.dataset.id = tx.id;
-        item.innerHTML = `
-          <div class="tx-icon ${bgClass}">${typeIcons[tx.type] || ''}</div>
-          <div class="tx-main">
-            <b>${tx.title}</b>
-            <span>${tx.time}</span>
-          </div>
-          <div class="tx-amount">
-            <b class="${amountClass}">${sign}${formatMoney(tx.amount)}</b>
-            <span>${typeLabels[tx.type]}</span>
-          </div>
-        `;
+        const icon = document.createElement('div');
+        icon.className = 'tx-icon ' + bgClass;
+        icon.innerHTML = typeIcons[tx.type] || '';
+        const main = document.createElement('div');
+        main.className = 'tx-main';
+        const title = document.createElement('b');
+        title.textContent = tx.type === 'personal_recharge' ? '个人充值' : tx.type === 'enterprise_recharge' ? '企业充值' : tx.type === 'consume' ? '消费' : tx.type === 'personal_balance_refund' ? '余额退款' : label;
+        const time = document.createElement('span');
+        time.textContent = tx.createdAt;
+        main.append(title, time);
+        const amount = document.createElement('div');
+        amount.className = 'tx-amount';
+        const value = document.createElement('b');
+        value.className = amountClass;
+        value.textContent = sign + formatMoney(tx.amount);
+        const kind = document.createElement('span');
+        kind.textContent = label;
+        amount.append(value, kind);
+        item.append(icon, main, amount);
         return item;
       }
 
@@ -515,25 +523,28 @@
         }
       }
 
+      function addDetailRow(label, value) {
+        const row = document.createElement('div');
+        row.className = 'modal-row';
+        const key = document.createElement('label');
+        key.textContent = label;
+        const text = document.createElement('value');
+        text.textContent = String(value ?? '-');
+        row.append(key, text);
+        txModalBody.appendChild(row);
+      }
+
       function showTxDetail(tx) {
         const isIncome = tx.amount > 0;
-        const amountClass = isIncome ? 'amount-plus' : 'amount-minus';
         const sign = isIncome ? '+' : '';
-        const typeLabel = typeLabels[tx.type] || '其他';
-        let extraRows = '';
-        if (tx.merchant) {
-          extraRows += `<div class="modal-row"><label>商户</label><value>${tx.merchant}</value></div>`;
-        }
-        if (tx.channel) {
-          extraRows += `<div class="modal-row"><label>支付渠道</label><value>${tx.channel}</value></div>`;
-        }
-        txModalBody.innerHTML = `
-          <div class="modal-row"><label>交易类型</label><value>${typeLabel}</value></div>
-          <div class="modal-row"><label>交易金额</label><value class="${amountClass}">${sign}${formatMoney(tx.amount)}</value></div>
-          <div class="modal-row"><label>交易时间</label><value>${tx.time}</value></div>
-          <div class="modal-row"><label>交易状态</label><value>${tx.status === 'success' ? '成功' : tx.status}</value></div>
-          ${extraRows}
-        `;
+        txModalBody.replaceChildren();
+        addDetailRow('交易类型', typeLabels[tx.type] || tx.type);
+        addDetailRow('交易金额', sign + formatMoney(tx.amount));
+        addDetailRow('交易时间', tx.createdAt);
+        addDetailRow('交易状态', tx.paymentStatus || tx.status || '成功');
+        const merchant = parkState.state.merchants.find(item => item.id === tx.merchantId);
+        if (merchant) addDetailRow('商户', merchant.name);
+        if (tx.paymentChannel) addDetailRow('支付渠道', tx.paymentChannel);
         txModal.classList.add('active');
       }
 

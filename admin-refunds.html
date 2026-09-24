@@ -29,8 +29,8 @@
     const tabs=[{label:'全部',status:'all'},{label:'待审核',status:'pending_review'},{label:'审核中',status:'reviewing'},{label:'驳回',status:'rejected'},{label:'已到账',status:'arrived'},{label:'已完成',status:'completed'},{label:'人工处理中',status:'manual_processing'}];
     let currentFilter='all';
 
-    function parkRequests(){return (parkState.state.refundRequests||[]).filter(function(item){return item.parkId===parkId})}
-    function userName(request){const user=(parkState.state.users||[]).find(function(item){return item.parkId===request.parkId&&item.id===request.userId});return user?user.name:request.userId}
+    function parkRequests(){return (parkState.state.refundRequests||[]).filter(function(item){if(item.type==='personal_balance')return (parkState.state.users||[]).some(function(user){return user.id===item.userId&&user.homeParkId===parkId});if(item.type==='enterprise_balance')return (parkState.state.enterprises||[]).some(function(enterprise){return enterprise.id===item.enterpriseId&&enterprise.parkId===parkId});return false})}
+    function userName(request){if(request.type==='enterprise_balance'){const enterprise=(parkState.state.enterprises||[]).find(function(item){return item.id===request.enterpriseId});return enterprise?enterprise.name:request.enterpriseId}const user=(parkState.state.users||[]).find(function(item){return item.homeParkId===parkId&&item.id===request.userId});return user?user.name:request.userId}
     function text(tag,value,className){const node=document.createElement(tag);node.textContent=value;if(className)node.className=className;return node}
     function cell(row,value){const td=document.createElement('td');td.textContent=value;row.appendChild(td);return td}
     function statusTag(request){const info=statusMap[request.status]||[request.status,'tag-muted'];return text('span',info[0],'tag '+info[1])}

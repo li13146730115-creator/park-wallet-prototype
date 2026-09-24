@@ -69,8 +69,8 @@
       const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
       const merchants = (state.merchants || []).filter(function (item) { return item.parkId === parkId; });
       const merchantConfig = state.merchantConfig || {};
-      const settlements = (state.pendingSettlements || []).filter(function (item) { return item.parkId === parkId; });
-      const orders = (state.orders || []).filter(function (item) { return item.parkId === parkId && item.status === 'paid'; });
+      const settlements = (state.pendingSettlements || []).filter(function (item) { return item.consumeParkId === parkId; });
+      const orders = (state.orders || []).filter(function (item) { return item.consumeParkId === parkId && item.paymentStatus === 'paid'; });
 
       const filter = { status: '', keyword: '' };
       const els = {
@@ -82,7 +82,7 @@
       function money(value) { return '¥' + formatMoney(Number(value) || 0); }
       function merchantLabel(order) {
         const found = merchants.find(function (m) { return m.id === order.merchantId; });
-        return found ? found.name : (order.merchant || '-');
+        return found ? found.name : (order.merchantName || '-');
       }
       function ratioOf(order) {
         const config = merchantConfig[order.merchantId];
@@ -117,7 +117,7 @@
           }
           return true;
         }).sort(function (a, b) {
-          return String(b.order.time || '').localeCompare(String(a.order.time || ''));
+          return String(b.order.createdAt || '').localeCompare(String(a.order.createdAt || ''));
         });
       }
       function appendCell(row, value, className) {

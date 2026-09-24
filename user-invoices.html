@@ -86,21 +86,21 @@
 
       function rechargeTransactions() {
         return (parkState.state.transactions || [])
-          .filter(function (item) { return item.type === 'recharge' && item.status === 'success' && item.parkId === owner.parkId && item.userId === owner.userId; })
-          .sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); });
+          .filter(function (item) { return item.type === 'personal_recharge' && item.parkId === owner.parkId && item.userId === owner.userId; })
+          .sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
       }
       function activeTitles() {
         return (parkState.state.invoiceTitles || []).filter(function (item) {
-          return item.parkId === owner.parkId && item.userId === owner.userId && !item.deletedAt;
+          return item.userId === owner.userId && !item.deletedAt;
         });
       }
       function recordFor(transactionId) {
-        return (parkState.state.invoiceRecords || []).find(function (item) { return item.transactionId === transactionId; }) || null;
+        return (parkState.state.invoiceRecords || []).find(function (item) { return item.type === 'recharge_receipt' && item.sourceId === transactionId; }) || null;
       }
       function invoiceStatus(transactionId) {
         const record = recordFor(transactionId);
         if (!record) return '未开票';
-        return record.status === 'issued' ? '已开票' : '开票中';
+        return record ? '已开票' : '未开票';
       }
       function money(value) { return '¥' + formatMoney(Number(value) || 0); }
       function statusClass(status) { return status === '已开票' ? 'status-complete' : status === '开票中' ? 'status-processing' : 'status-uninvoiced'; }
@@ -112,14 +112,21 @@
         transactions.forEach(function (transaction) {
           const status = invoiceStatus(transaction.id);
           const item = document.createElement('div'); item.className = 'invoice-record'; item.dataset.transactionId = transaction.id;
-          item.innerHTML = '<div class="record-head"><b>' + transaction.title + '</b><span class="record-amount">+' + money(transaction.amount) + '</span></div><div class="record-meta">' + (transaction.channel || '支付方式未记录') + ' · ' + transaction.time + '</div><div class="record-foot"><span class="record-status ' + statusClass(status) + '">' + status + '</span></div>';
-          if (status === '未开票') { const button = document.createElement('button'); button.className = 'btn btn-primary btn-sm'; button.textContent = '申请开票'; button.addEventListener('click', function (event) { event.stopPropagation(); openApplyModal(transaction); }); item.querySelector('.record-foot').appendChild(button); }
+          const head = document.createElement('div'); head.className = 'record-head';
+          const title = document.createElement('b'); title.textContent = '个人充值';
+          const amount = document.createElement('span'); amount.className = 'record-amount'; amount.textContent = '+' + money(transaction.amount);
+          head.append(title, amount);
+          const meta = document.createElement('div'); meta.className = 'record-meta'; meta.textContent = (transaction.paymentChannel || '支付方式未记录') + ' · ' + transaction.createdAt;
+          const foot = document.createElement('div'); foot.className = 'record-foot';
+          const tag = document.createElement('span'); tag.className = 'record-status ' + statusClass(status); tag.textContent = status; foot.appendChild(tag);
+          item.append(head, meta, foot);
+          if (status === '未开票') { const button = document.createElement('button'); button.className = 'btn btn-primary btn-sm'; button.textContent = '申请开票'; button.addEventListener('click', function (event) { event.stopPropagation(); openApplyModal(transaction); }); foot.appendChild(button); }
           item.addEventListener('click', function () { location.href = 'user-recharge-detail.html?id=' + encodeURIComponent(transaction.id); });
           list.appendChild(item);
         });
       }
-      function renderOrder(transaction) { document.getElementById('apply-order-card').innerHTML = '<div class="apply-order-main"><b>' + transaction.title + '</b><span>' + transaction.time + (transaction.channel ? ' · ' + transaction.channel : '') + '</span></div><div class="apply-order-amount">' + money(transaction.amount) + '</div>'; }
-      function renderTitle(titleId) { const title = activeTitles().find(function (item) { return item.id === titleId; }); const card = document.getElementById('apply-title-card'); if (!title) { card.innerHTML = '<div class="empty-state" style="padding:12px">暂无发票抬头</div>'; return; } const rows = [['税号', title.taxId], ['单位地址', title.address], ['电话', title.phone], ['开户行', title.bank], ['银行账户', title.bankAccount]]; card.innerHTML = '<div class="apply-title-head"><b>' + title.name + '</b>' + (title.isDefault ? '<span class="tag tag-success">默认</span>' : '') + '</div>' + rows.map(function (row) { return '<div class="apply-title-row"><label>' + row[0] + '</label><span>' + (row[1] || '未填写') + '</span></div>'; }).join(''); }
+      function renderOrder(transaction) { const card = document.getElementById('apply-order-card'); card.replaceChildren(); const main = document.createElement('div'); main.className = 'apply-order-main'; const title = document.createElement('b'); title.textContent = '个人充值'; const time = document.createElement('span'); time.textContent = transaction.createdAt + (transaction.paymentChannel ? ' · ' + transaction.paymentChannel : ''); main.append(title, time); const amount = document.createElement('div'); amount.className = 'apply-order-amount'; amount.textContent = money(transaction.amount); card.append(main, amount); }
+      function renderTitle(titleId) { const title = activeTitles().find(function (item) { return item.id === titleId; }); const card = document.getElementById('apply-title-card'); card.replaceChildren(); if (!title) { card.textContent = '暂无发票抬头'; return; } const head = document.createElement('div'); head.className = 'apply-title-head'; const name = document.createElement('b'); name.textContent = title.name; head.appendChild(name); card.appendChild(head); [['税号', title.taxId], ['单位地址', title.address], ['电话', title.phone], ['开户行', title.bank], ['银行账户', title.bankAccount]].forEach(function (pair) { const row = document.createElement('div'); row.className = 'apply-title-row'; const label = document.createElement('label'); label.textContent = pair[0]; const value = document.createElement('span'); value.textContent = pair[1] || '未填写'; row.append(label, value); card.appendChild(row); }); }
       function fillTitleSelect() { const select = document.getElementById('title-select'); select.replaceChildren(); activeTitles().forEach(function (title) { const option = document.createElement('option'); option.value = title.id; option.textContent = title.name + (title.isDefault ? '（默认）' : ''); option.selected = title.isDefault; select.appendChild(option); }); renderTitle(select.value); }
       function openApplyModal(transaction) { selectedTransaction = transaction; renderOrder(transaction); fillTitleSelect(); document.getElementById('apply-modal').classList.add('active'); }
       function closeApplyModal() { document.getElementById('apply-modal').classList.remove('active'); selectedTransaction = null; }

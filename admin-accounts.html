@@ -69,8 +69,8 @@
       const state = window.parkState.state;
       const parkId = (window.parkV2Admin && window.parkV2Admin.getCurrentParkId) ? window.parkV2Admin.getCurrentParkId() : 'park-001';
 
-      const accounts = (state.accounts || []).filter(function (item) { return item.parkId === parkId; });
-      const parkUsers = (state.users || []).filter(function (item) { return item.parkId === parkId; });
+      const accounts = (state.accounts || []).filter(function (item) { return item.homeParkId === parkId; });
+      const parkUsers = (state.users || []).filter(function (item) { return item.homeParkId === parkId; });
       const transactions = (state.transactions || []).filter(function (item) { return item.parkId === parkId; });
       const orders = (state.orders || []).filter(function (item) { return item.parkId === parkId; });
 
@@ -81,12 +81,12 @@
       function latestTime(account) {
         const userTxns = transactionsFor(account);
         const userOrders = orders.filter(function (o) { return o.userId === account.userId; });
-        const times = userTxns.map(function (t) { return t.time; }).concat(userOrders.map(function (o) { return o.time; })).filter(Boolean);
+        const times = userTxns.map(function (t) { return t.createdAt; }).concat(userOrders.map(function (o) { return o.createdAt; })).filter(Boolean);
         if (!times.length) return '-';
         return times.sort().reverse()[0];
       }
       function totalRecharge(account) {
-        return transactionsFor(account).filter(function (t) { return t.type === 'recharge'; }).reduce(function (sum, t) { return plus(sum, Math.abs(t.amount)); }, 0);
+        return transactionsFor(account).filter(function (t) { return t.type === 'personal_recharge' || t.type === 'enterprise_recharge'; }).reduce(function (sum, t) { return plus(sum, Math.abs(t.amount)); }, 0);
       }
 
       let viewMode = 'month';
@@ -100,7 +100,15 @@
       };
 
       function renderMetrics() {
-        const stats = window.parkState.selectors.getAccountStatistics(parkId, viewMode === 'month' ? 'month' : 'all');
+        const current = new Date();
+        const monthTransactions = transactions.filter(function (item) { return String(item.createdAt).slice(0, 7) === current.getFullYear() + '-' + String(current.getMonth() + 1).padStart(2, '0'); });
+        const source = viewMode === 'month' ? monthTransactions : transactions;
+        const stats = {
+          accountCount: accounts.length,
+          totalStored: source.filter(function (item) { return item.type === 'personal_recharge' || item.type === 'enterprise_recharge'; }).reduce(function (sum, item) { return sum + item.amount; }, 0),
+          available: accounts.reduce(function (sum, account) { return sum + account.personal.available + account.enterpriseBalances.reduce(function (balance, item) { return balance + item.available; }, 0); }, 0),
+          frozen: accounts.reduce(function (sum, account) { return sum + account.personal.frozen + account.enterpriseBalances.reduce(function (balance, item) { return balance + item.frozen; }, 0); }, 0)
+        };
         els.metricUserCount.textContent = stats.accountCount;
         els.metricTotalRecharge.textContent = money(stats.totalStored);
         els.metricAvailable.textContent = money(stats.available);
@@ -141,8 +149,8 @@
           row.className = 'account-row';
           appendCell(row, user.name + '\n' + user.phone);
           appendCell(row, money(totalRecharge(account)), 'amount-plus');
-          appendCell(row, money(account.consumed), 'amount-minus');
-          appendCell(row, money(plus(account.available, account.frozen)));
+          appendCell(row, money(plus(account.personal.consumed, account.enterpriseBalances.reduce(function (sum, balance) { return sum + balance.consumed; }, 0))), 'amount-minus');
+          appendCell(row, money(plus(account.personal.available + account.personal.frozen, account.enterpriseBalances.reduce(function (sum, balance) { return sum + balance.available + balance.frozen; }, 0))));
           appendCell(row, latestTime(account));
           const opCell = document.createElement('td');
           const link = document.createElement('a');

@@ -37,28 +37,28 @@
     'use strict';
     const MERCHANT_ID='M002',NOW=new Date(),CURRENT_MONTH=NOW.getFullYear()+'-'+String(NOW.getMonth()+1).padStart(2,'0'),user=parkState.state.user,orders=parkState.state.orders,config=parkState.state.merchantConfig[MERCHANT_ID]||{name:'海智咖啡 HUB',ratio:0.8},transactions=parkState.state.transactions,pendingSettlements=parkState.state.pendingSettlements;
     let flowFilter='all';
-    function isCurrentMonth(order){return String(order.time||'').slice(0,7)===CURRENT_MONTH}
+    function isCurrentMonth(order){return String(order.createdAt||'').slice(0,7)===CURRENT_MONTH}
     function merchantOrders(){return orders.filter(o=>o.merchantId===MERCHANT_ID)}
     function currentMonthOrders(){return merchantOrders().filter(isCurrentMonth)}
     function renderMetrics(){
       const monthly=currentMonthOrders();
       document.getElementById('month-order-count').textContent=monthly.length;
-      const income=monthly.filter(o=>o.status==='paid').reduce((sum,o)=>sum+Number(o.amount),0);
+      const income=monthly.filter(o=>o.paymentStatus==='paid').reduce((sum,o)=>sum+Number(o.amount),0);
       document.getElementById('month-income').textContent='¥'+formatMoney(income);
-      const share=monthly.filter(o=>o.status==='paid').reduce((sum,o)=>sum+Number(o.amount)*config.ratio,0);
+      const share=monthly.filter(o=>o.paymentStatus==='paid').reduce((sum,o)=>sum+Number(o.amount)*config.ratio,0);
       document.getElementById('month-share').textContent='¥'+formatMoney(share);
-      const refund=monthly.filter(o=>o.status==='refunded').reduce((sum,o)=>sum+Number(o.amount),0);
+      const refund=monthly.filter(o=>o.refundStatus==='refunded').reduce((sum,o)=>sum+Number(o.amount),0);
       document.getElementById('month-refund').textContent='¥'+formatMoney(refund);
     }
     function maskName(value){const text=String(value||'').trim();if(!text)return '未填写';if(/\*{2,}/.test(text)||text.length===1)return text;return text.charAt(0)+'***'+text.charAt(text.length-1)}
     function maskPhone(value){const text=String(value||'').trim();if(!text)return '未填写';if(text.includes('*'))return text;return /^\d{11}$/.test(text)?text.slice(0,3)+'****'+text.slice(-4):text}
     function successfulSettlement(orderId){return pendingSettlements.filter(item=>item.status==='success'&&Array.isArray(item.orderIds)&&item.orderIds.includes(orderId)).sort((a,b)=>String(b.paymentRecordedAt||'').localeCompare(String(a.paymentRecordedAt||'')))[0]||null}
-    function transactionName(order){const transaction=transactions.find(item=>item.type==='consume'&&item.orderId===order.id);return transaction&&String(transaction.title||'').trim()?transaction.title:config.name+' 消费'}
+    function transactionName(order){return config.name+' 消费'}
     function flowRows(){
-      return merchantOrders().filter(order=>order.status==='paid').map(order=>{
+      return merchantOrders().filter(order=>order.paymentStatus==='paid').map(order=>{
         const settlement=successfulSettlement(order.id),status=settlement?'settled':'pending';
         return {order,status,label:status==='settled'?'已分账':'待分账',name:transactionName(order),userInfo:maskName(user.name)+'_'+maskPhone(user.phone),share:Number(order.amount)*config.ratio,settledAt:settlement?(settlement.paymentRecordedAt||'时间未记录'):'待分账'};
-      }).filter(row=>flowFilter==='all'||row.status===flowFilter).sort((a,b)=>String(b.order.time||'').localeCompare(String(a.order.time||'')));
+      }).filter(row=>flowFilter==='all'||row.status===flowFilter).sort((a,b)=>String(b.order.createdAt||'').localeCompare(String(a.order.createdAt||'')));
     }
     function addText(parent,className,text,tagName){const element=document.createElement(tagName||'div');element.className=className;element.textContent=text;parent.appendChild(element);return element}
     function addDetailRow(parent,label,value){const row=document.createElement('div');row.className='detail-row';addText(row,'',label,'span');addText(row,'',value,'span');parent.appendChild(row)}
@@ -70,7 +70,7 @@
         card.className='flow-card';card.setAttribute('data-order-id',row.order.id);head.className='flow-head';money.className='flow-money';details.className='flow-details';
         addText(head,'flow-order',row.order.id);addText(head,'tag '+(row.status==='settled'?'tag-success':'tag-pending'),row.label,'span');card.appendChild(head);
         addText(card,'flow-name',row.name);addText(money,'','订单金额 ¥'+formatMoney(row.order.amount),'span');addText(money,'','分账金额 ¥'+formatMoney(row.share),'span');card.appendChild(money);
-        addDetailRow(details,'用户信息',row.userInfo);addDetailRow(details,'交易时间',row.order.time||'-');addDetailRow(details,'分账时间',row.settledAt);card.appendChild(details);list.appendChild(card);
+        addDetailRow(details,'用户信息',row.userInfo);addDetailRow(details,'交易时间',row.order.createdAt||'-');addDetailRow(details,'分账时间',row.settledAt);card.appendChild(details);list.appendChild(card);
       });
     }
     document.querySelectorAll('#settlement-filter button').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('#settlement-filter button').forEach(item=>item.classList.toggle('active',item===button));flowFilter=button.dataset.status;renderFlow()}));
