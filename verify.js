@@ -225,6 +225,48 @@ test('所有本地页面链接均指向存在的文件', () => {
   assert(missingLinks.length === 0, '发现无效本地链接：\n' + missingLinks.join('\n'));
 });
 
+test('个人自定义充值金额可启用去支付并携带正确金额', () => {
+  const context = createPageContext();
+  const parkState = runSharedState(context);
+  const elements = new Map();
+  function element(id) {
+    const listeners = {};
+    return {
+      id, value: '', disabled: true, textContent: '', hidden: true, dataset: {},
+      classList: { add() {}, remove() {} },
+      addEventListener(type, handler) { listeners[type] = handler; },
+      setAttribute() {},
+      querySelector() { return { addEventListener() {} }; },
+      trigger(type) { assert(listeners[type], id + ' 缺少 ' + type + ' 事件'); listeners[type].call(this, { stopPropagation() {} }); }
+    };
+  }
+  ['current-balance', 'custom-input', 'pay-amount', 'pay-btn', 'tier-grid', 'more-button', 'more-menu'].forEach(id => elements.set(id, element(id)));
+  const tier = element('tier-200');
+  tier.dataset.amount = '200';
+  const document = {
+    getElementById(id) { return elements.get(id); },
+    querySelectorAll(selector) { return selector === '.tier-card' ? [tier] : []; },
+    addEventListener() {}
+  };
+  context.window.document = document;
+  context.window.location = { href: '' };
+  vm.runInNewContext(extractInlineScripts(readRequired('userRecharge')).filter(script => script.trim()).pop(), context.window, { filename: FILES.userRecharge });
+  assertEqual(elements.get('current-balance').textContent, parkState.selectors.getAccountByUser('U001').personal.available.toFixed(2), '余额应显示个人可用余额');
+  assertEqual(elements.get('pay-amount').textContent, '200.00', '默认充值档位应初始化');
+  const input = elements.get('custom-input');
+  input.value = '123';
+  input.trigger('input');
+  assertEqual(elements.get('pay-btn').disabled, false, '自定义金额输入后应启用支付按钮');
+  assertEqual(elements.get('pay-amount').textContent, '123.00', '自定义金额应更新汇总');
+  elements.get('pay-btn').trigger('click');
+  const url = new URL(context.window.location.href, 'https://example.test/');
+  assertEqual(url.pathname, '/aggregate-payment.html', '支付应跳转到聚合支付页');
+  assertEqual(url.searchParams.get('amount'), '123.00', '支付金额应正确传递');
+  input.value = '';
+  input.trigger('input');
+  assertEqual(elements.get('pay-btn').disabled, true, '清空金额后应禁用支付');
+});
+
 test('企业后台窄屏保留可横向滚动的页面导航', () => {
   const styles = fs.readFileSync(path.join(BASE_DIR, 'shared-styles.css'), 'utf8');
   const mobileBlock = styles.match(/@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*?)\n\}/);

@@ -237,7 +237,7 @@
   <script>
     (function () {
       'use strict';
-      const wallet = parkState.state.wallet;
+      const wallet = parkState.selectors.getAccountByUser('U001').personal;
 
       const els = {
         currentBalance: document.getElementById('current-balance'),
@@ -250,7 +250,7 @@
       };
 
       function refreshWalletDisplay() {
-        els.currentBalance.textContent = formatMoney(wallet.total);
+        els.currentBalance.textContent = formatMoney(wallet.available);
       }
       refreshWalletDisplay();
 
