@@ -35,7 +35,8 @@ const FILES = {
   adminOrders: 'admin-orders.html',
   adminRefunds: 'admin-refunds.html',
   adminSettlements: 'admin-settlements.html',
-  adminReconciliation: 'admin-reconciliation.html'
+  adminReconciliation: 'admin-reconciliation.html',
+  userPaymentCode: 'user-payment-code.html'
 };
 
 const results = [];
@@ -1296,6 +1297,109 @@ test('注销申请状态一律展示中文而非英文枚举', () => {
     const progressText = progressRow.children[1].textContent;
     assert(progressText === '待审核', '进度行应展示中文“待审核”，实际：' + progressText);
   });
+});
+
+function createElementStub(id) {
+  const listeners = {};
+  return {
+    id, value: '', disabled: true, textContent: '', hidden: true, dataset: {}, innerHTML: '',
+    classList: { add() {}, remove() {} },
+    addEventListener(type, handler) { listeners[type] = handler; },
+    setAttribute() {},
+    querySelector() { return { addEventListener() {} }; },
+    appendChild() {},
+    replaceChildren() {},
+    trigger(type) { assert(listeners[type], id + ' 缺少 ' + type + ' 事件'); listeners[type].call(this, { stopPropagation() {} }); }
+  };
+}
+
+function createPageHarness(pageName, ids, options) {
+  const context = createPageContext();
+  const parkState = runSharedState(context);
+  const elements = new Map();
+  ids.forEach(id => elements.set(id, createElementStub(id)));
+  const couponOptions = options && options.couponOptions ? options.couponOptions : [];
+  const document = {
+    getElementById(id) { return elements.get(id); },
+    querySelectorAll(selector) { return selector === '.coupon-option' ? couponOptions : []; },
+    createElement() { return { className: '', textContent: '', dataset: {}, classList: { add() {}, remove() {} }, appendChild() {}, addEventListener() {} }; },
+    addEventListener() {}
+  };
+  context.window.document = document;
+  context.window.location = { href: '' };
+  context.window.alert = () => {};
+  context.window.setInterval = () => 0;
+  context.window.clearInterval = () => {};
+  context.window.addEventListener = () => {};
+  const script = extractInlineScripts(readRequired(pageName)).filter(item => item.trim()).pop();
+  return {
+    context, parkState, elements,
+    run() { vm.runInNewContext(script, context.window, { filename: FILES[pageName] }); }
+  };
+}
+
+test('优惠券种子：U001 默认拥有一张可用优惠券', () => {
+  const parkState = runSharedState(createPageContext());
+  const coupons = parkState.state.coupons;
+  assert(Array.isArray(coupons), 'state.coupons 应为数组，实际：' + typeof coupons);
+  const own = coupons.filter(row => row.userId === 'U001' && row.amount === 5 && row.status === 'active');
+  assert(own.length > 0, 'U001 应默认拥有一张 5 元可用优惠券');
+});
+
+test('优惠券付款流：用户端付款码页按折后金额生成待支付单', () => {
+  const coupon = createElementStub('coupon-0001');
+  coupon.dataset.couponId = 'CPN-0001';
+  coupon.dataset.amount = '5';
+  const harness = createPageHarness('userPaymentCode', ['payment-setup-view', 'payment-code-view', 'order-amount-input', 'coupon-options', 'payable-amount', 'initiate-btn', 'qr-code', 'refresh-tip'], { couponOptions: [coupon] });
+  harness.run();
+  assertEqual(harness.elements.get('payment-setup-view').hidden, false, '加载后应展示付款设置视图');
+  const input = harness.elements.get('order-amount-input');
+  input.value = '25';
+  input.trigger('input');
+  coupon.trigger('click');
+  assertEqual(harness.elements.get('payable-amount').textContent, '20.00', '选择 5 元优惠券后实付应为 20.00');
+  harness.elements.get('initiate-btn').trigger('click');
+  const pending = JSON.parse(harness.context.window.localStorage.getItem('parkPendingPayment'));
+  assert(pending, '发起付款后应写入 parkPendingPayment 待支付单');
+  assertEqual(pending.userId, 'U001', '待支付单应记录用户');
+  assertEqual(pending.orderAmount, 25, '待支付单订单金额应为 25');
+  assertEqual(pending.couponId, 'CPN-0001', '待支付单应记录所选优惠券');
+  assertEqual(pending.couponAmount, 5, '待支付单优惠券抵扣应为 5');
+  assertEqual(pending.payable, 20, '待支付单实付金额应为 20');
+  assert(typeof pending.requestId === 'string' && pending.requestId.length > 0, '待支付单应携带 requestId');
+  assertEqual(harness.elements.get('payment-code-view').hidden, false, '发起付款后应展示付款码视图');
+});
+
+test('优惠券付款流：商户扫码按待支付单折后金额收款并核销优惠券', () => {
+  const harness = createPageHarness('merchantScan', ['scan-screen', 'detail-screen', 'result-screen', 'empty-screen', 'scan-btn', 'detail-order-amount', 'detail-coupon-amount', 'detail-receive-amount', 'confirm-btn', 'result-icon', 'result-title', 'result-subtitle', 'result-amount', 'result-time', 'result-done-btn']);
+  harness.context.window.localStorage.setItem('parkPendingPayment', JSON.stringify({ userId: 'U001', orderAmount: 25, couponId: 'CPN-0001', couponAmount: 5, payable: 20, requestId: 'REQ-TEST-1', createdAt: '2026-09-27 10:00' }));
+  harness.run();
+  harness.elements.get('scan-btn').trigger('click');
+  assertEqual(harness.elements.get('detail-screen').hidden, false, '扫码后应展示待支付单明细视图');
+  assertEqual(harness.elements.get('detail-order-amount').textContent, '25.00', '明细应展示订单金额 25.00');
+  assertEqual(harness.elements.get('detail-coupon-amount').textContent, '5.00', '明细应展示优惠券抵扣 5.00');
+  assertEqual(harness.elements.get('detail-receive-amount').textContent, '20.00', '明细应展示实际收款 20.00');
+  harness.elements.get('confirm-btn').trigger('click');
+  assertEqual(harness.elements.get('result-screen').hidden, false, '确认收款后应展示结果视图');
+  const orders = harness.parkState.state.orders;
+  const latest = orders[orders.length - 1];
+  assertEqual(latest.amount, 20, '订单入账金额应为折后 20');
+  assertEqual(latest.originalAmount, 25, '订单应保留原始金额 25');
+  assertEqual(latest.couponAmount, 5, '订单应记录优惠券抵扣 5');
+  assertEqual(latest.merchantId, 'M002', '订单应归属商户 M002');
+  assertEqual(latest.userId, 'U001', '订单应归属用户 U001');
+  const coupon = harness.parkState.state.coupons.find(row => row.id === 'CPN-0001');
+  assertEqual(coupon.status, 'used', '优惠券应在收款后核销');
+  assertEqual(harness.context.window.localStorage.getItem('parkPendingPayment'), null, '收款后应清除待支付单');
+});
+
+test('优惠券付款流：商户扫码无待支付单时展示空态', () => {
+  const harness = createPageHarness('merchantScan', ['scan-screen', 'detail-screen', 'result-screen', 'empty-screen', 'scan-btn', 'detail-order-amount', 'detail-coupon-amount', 'detail-receive-amount', 'confirm-btn', 'result-icon', 'result-title', 'result-subtitle', 'result-amount', 'result-time', 'result-done-btn']);
+  harness.run();
+  harness.elements.get('scan-btn').trigger('click');
+  assertEqual(harness.elements.get('empty-screen').hidden, false, '无待支付单时扫码应展示空态视图');
+  assertEqual(harness.elements.get('detail-screen').hidden, true, '空态时不应展示明细视图');
+  assert(readRequired('merchantScan').includes('用户余额不足，收款失败'), '商家扫码页应保留用户余额不足收款失败文案');
 });
 
 console.log('Results:');

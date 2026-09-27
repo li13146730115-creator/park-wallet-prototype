@@ -7,8 +7,7 @@
   <link rel="stylesheet" href="shared-styles.css">
   <style>
     .app-content { padding: 0 var(--page-padding) 18px; }
-    .screen { display: none; }
-    .screen.active { display: block; }
+    .screen[hidden] { display: none; }
 
     .scan-hero {
       border-radius: 0 0 var(--radius-card) var(--radius-card);
@@ -47,48 +46,77 @@
     .scan-actions { padding: 8px 0 0; }
     .scan-actions .btn { width: 100%; height: 54px; font-size: 17px; font-weight: 750; }
 
-    .amount-card {
+    .detail-card {
       background: var(--card-bg);
       border-radius: var(--radius-card);
       box-shadow: var(--shadow-card);
-      padding: 22px 16px 18px;
+      padding: 18px 16px 18px;
+      margin-top: 14px;
+    }
+    .detail-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--divider);
+    }
+    .detail-badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--info-bg);
+      color: var(--info);
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .detail-head span { color: var(--muted); font-size: 12px; }
+    .detail-rows .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--divider);
+      font-size: 14px;
+    }
+    .detail-rows .row:last-child { border-bottom: 0; }
+    .detail-rows .row label { color: var(--muted); }
+    .detail-rows .row value { color: var(--ink); font-weight: 650; }
+    .detail-rows .row value.deduct { color: var(--error); }
+    .receive-block {
+      margin: 14px 0 18px;
+      padding: 14px;
+      border-radius: var(--radius-small);
+      background: var(--info-bg);
+      text-align: center;
+    }
+    .receive-block label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .receive-value { font-size: 34px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+    .receive-value small { font-size: 18px; margin-right: 2px; }
+    .detail-actions { display: grid; gap: 10px; }
+    .detail-actions .btn { height: 50px; font-size: 16px; font-weight: 750; }
+    .detail-tip { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.6; text-align: center; }
+
+    .empty-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 44px 20px 32px;
       margin-top: 14px;
       text-align: center;
     }
-    .amount-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    .amount-value { font-size: 44px; font-weight: 700; color: var(--ink); line-height: 1.1; }
-    .amount-value small { font-size: 24px; margin-right: 2px; }
-    .amount-balance { font-size: 12px; color: var(--muted); margin-top: 10px; }
-    .amount-error { font-size: 12px; color: var(--error); margin-top: 8px; min-height: 18px; }
-    .keypad {
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
-      margin-top: 18px;
-      padding: 0 4px;
+      place-items: center;
+      margin: 0 auto 14px;
+      background: var(--page-bg);
+      color: var(--muted);
     }
-    .key {
-      height: 60px;
-      border-radius: 14px;
-      border: 0;
-      background: var(--card-bg);
-      box-shadow: var(--shadow-card);
-      font-size: 22px;
-      font-weight: 650;
-      color: var(--ink);
-      font-family: inherit;
-      cursor: pointer;
-      transition: transform 0.1s ease, opacity 0.15s ease;
-    }
-    .key:active { transform: scale(0.96); }
-    .key.func { color: var(--muted); font-size: 18px; font-weight: 700; }
-    .key.zero { grid-column: 2; }
-    .amount-actions { margin-top: 18px; padding: 0 4px; }
-    .amount-actions .btn { width: 100%; height: 52px; font-size: 16px; font-weight: 750; }
-    .amount-actions .btn:disabled { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.5); }
-    .remark-field { margin-top: 12px; text-align: left; }
-    .remark-field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-    .remark-field textarea { width: 100%; height: 88px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-small); font-size: 14px; font-family: inherit; line-height: 1.5; resize: none; box-sizing: border-box; }
+    .empty-icon svg { width: 30px; height: 30px; }
+    .empty-title { font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .empty-text { font-size: 13px; color: var(--muted); line-height: 1.7; margin-bottom: 22px; }
+    .empty-card .btn { width: 100%; height: 48px; font-size: 15px; font-weight: 700; }
 
     .result-card {
       background: var(--card-bg);
@@ -136,7 +164,7 @@
           <span class="more"><a href="merchant-settlements.html" style="font-size:13px;letter-spacing:0;text-decoration:none;color:var(--info);font-weight:600;">分账管理</a></span>
         </header>
         <main class="app-content">
-          <section id="scan-screen" class="screen active">
+          <section id="scan-screen" class="screen">
             <div class="scan-hero">
               <div class="scan-title">扫描用户付款码</div>
               <div class="scan-frame">
@@ -152,36 +180,49 @@
             </div>
           </section>
 
-          <section id="amount-screen" class="screen">
-            <div class="amount-card">
-              <div class="amount-label">收款金额</div>
-              <div class="amount-value"><small>¥</small><span id="amount-display">0.00</span></div>
-              <div class="amount-error" id="amount-error"></div>
-            </div>
-            <div class="keypad">
-              <button class="key" data-key="1">1</button>
-              <button class="key" data-key="2">2</button>
-              <button class="key" data-key="3">3</button>
-              <button class="key" data-key="4">4</button>
-              <button class="key" data-key="5">5</button>
-              <button class="key" data-key="6">6</button>
-              <button class="key" data-key="7">7</button>
-              <button class="key" data-key="8">8</button>
-              <button class="key" data-key="9">9</button>
-              <button class="key func" data-key="C">C</button>
-              <button class="key zero" data-key="0">0</button>
-              <button class="key func" data-key="⌫">⌫</button>
-            </div>
-            <div class="amount-actions">
-              <button class="btn btn-primary" id="confirm-amount-btn">确认收款</button>
-            </div>
-            <div class="remark-field">
-              <label for="remark-input">收款备注</label>
-              <textarea id="remark-input" placeholder="可自定义输入备注内容" maxlength="60"></textarea>
+          <section id="detail-screen" class="screen" hidden>
+            <div class="detail-card">
+              <div class="detail-head">
+                <span class="detail-badge">待支付单</span>
+                <span>用户已发起付款</span>
+              </div>
+              <div class="detail-rows">
+                <div class="row">
+                  <label>订单金额</label>
+                  <value>¥<span id="detail-order-amount">0.00</span></value>
+                </div>
+                <div class="row">
+                  <label>优惠券抵扣</label>
+                  <value class="deduct">-¥<span id="detail-coupon-amount">0.00</span></value>
+                </div>
+              </div>
+              <div class="receive-block">
+                <label>实际收款</label>
+                <div class="receive-value"><small>¥</small><span id="detail-receive-amount">0.00</span></div>
+              </div>
+              <div class="detail-actions">
+                <button class="btn btn-primary" id="confirm-btn" type="button">确认收款</button>
+                <a class="btn btn-white" href="merchant-home.html">取消</a>
+              </div>
+              <p class="detail-tip">收款金额已按优惠券抵扣后的折后金额计算，确认后将从用户储值余额中扣除。</p>
             </div>
           </section>
 
-          <section id="result-screen" class="screen">
+          <section id="empty-screen" class="screen" hidden>
+            <div class="empty-card">
+              <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="4"></rect>
+                  <path d="M8 12h8"></path>
+                </svg>
+              </div>
+              <div class="empty-title">未读取到待支付单</div>
+              <div class="empty-text">请让用户先在「付款码」页面输入订单金额、选择优惠券并发起付款，生成付款码后再扫码收款。</div>
+              <a class="btn btn-primary" href="merchant-home.html">知道了</a>
+            </div>
+          </section>
+
+          <section id="result-screen" class="screen" hidden>
             <div class="result-card">
               <div class="result-icon success" id="result-icon">✓</div>
               <div class="result-title" id="result-title">收款成功</div>
@@ -232,11 +273,45 @@
   <script>
     (function () {
       'use strict';
-      const OWNER = { parkId: 'park-001', userId: 'U001' };
+      const PARK_ID = 'park-001';
       const MERCHANT_ID = 'M002';
-      const MAX_CENTS = 999999;
+      const els = {
+        scanScreen: document.getElementById('scan-screen'),
+        detailScreen: document.getElementById('detail-screen'),
+        resultScreen: document.getElementById('result-screen'),
+        emptyScreen: document.getElementById('empty-screen'),
+        scanBtn: document.getElementById('scan-btn'),
+        orderAmount: document.getElementById('detail-order-amount'),
+        couponAmount: document.getElementById('detail-coupon-amount'),
+        receiveAmount: document.getElementById('detail-receive-amount'),
+        confirmBtn: document.getElementById('confirm-btn'),
+        resultIcon: document.getElementById('result-icon'),
+        resultTitle: document.getElementById('result-title'),
+        resultSubtitle: document.getElementById('result-subtitle'),
+        resultAmount: document.getElementById('result-amount'),
+        resultTime: document.getElementById('result-time')
+      };
+      const screens = [els.scanScreen, els.detailScreen, els.resultScreen, els.emptyScreen];
 
-      let cents = 0;
+      let pending = null;
+
+      function showScreen(target) {
+        screens.forEach(function (screen) { screen.hidden = screen !== target; });
+      }
+
+      function readPending() {
+        try {
+          const raw = window.localStorage.getItem('parkPendingPayment');
+          const parsed = raw ? JSON.parse(raw) : null;
+          return parsed && parsed.userId && typeof parsed.payable === 'number' ? parsed : null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function clearPending() {
+        try { window.localStorage.removeItem('parkPendingPayment'); } catch (error) { /* 存储不可用时忽略 */ }
+      }
 
       function formatTime(date) {
         const y = date.getFullYear();
@@ -244,68 +319,53 @@
         const d = String(date.getDate()).padStart(2, '0');
         const h = String(date.getHours()).padStart(2, '0');
         const min = String(date.getMinutes()).padStart(2, '0');
-        return `${y}-${m}-${d} ${h}:${min}`;
-      }
-      function showScreen(id) {
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById(id).classList.add('active');
-      }
-      function getAmount() { return cents / 100; }
-      function updateAmountDisplay() {
-        document.getElementById('amount-display').textContent = (cents / 100).toFixed(2);
-        validateAmount();
-      }
-      function validateAmount() {
-        const amount = getAmount();
-        const errorEl = document.getElementById('amount-error');
-        const btn = document.getElementById('confirm-amount-btn');
-        let error = '';
-        if (amount === 0) error = '请输入收款金额';
-        errorEl.textContent = error;
-        btn.disabled = !!error;
-      }
-      function onKey(key) {
-        if (key === 'C') cents = 0;
-        else if (key === '⌫') cents = Math.floor(cents / 10);
-        else {
-          if (cents >= MAX_CENTS) return;
-          cents = cents * 10 + parseInt(key, 10);
-        }
-        updateAmountDisplay();
-      }
-      function createOrderAndPay() {
-        const amount = getAmount();
-        const remark = document.getElementById('remark-input').value.trim();
-        const collectResult = parkState.actions.collectPayment({
-          parkId: OWNER.parkId,
-          userId: OWNER.userId,
-          merchantId: MERCHANT_ID,
-          amount: amount,
-          remark: remark || undefined,
-          requestId: 'REQ-SCAN-' + Date.now()
-        });
-        if (collectResult.ok) {
-          showResult(true, '收款成功', amount);
-        } else {
-          const message = collectResult.code === 'INSUFFICIENT_BALANCE' ? '用户余额不足，收款失败' : '收款失败：' + collectResult.code;
-          showResult(false, message, amount);
-        }
-      }
-      function showResult(success, subtitle, amount) {
-        showScreen('result-screen');
-        const icon = document.getElementById('result-icon');
-        icon.className = 'result-icon ' + (success ? 'success' : 'fail');
-        icon.textContent = success ? '✓' : '✕';
-        document.getElementById('result-title').textContent = success ? '收款成功' : '收款失败';
-        document.getElementById('result-subtitle').textContent = subtitle;
-        document.getElementById('result-amount').textContent = '¥' + formatMoney(amount);
-        document.getElementById('result-time').textContent = formatTime(new Date());
+        return y + '-' + m + '-' + d + ' ' + h + ':' + min;
       }
 
-      document.getElementById('scan-btn').addEventListener('click', () => { cents = 0; updateAmountDisplay(); showScreen('amount-screen'); });
-      document.querySelectorAll('.key').forEach(btn => btn.addEventListener('click', () => onKey(btn.dataset.key)));
-      document.getElementById('confirm-amount-btn').addEventListener('click', createOrderAndPay);
-      updateAmountDisplay();
+      function showDetail(payment) {
+        els.orderAmount.textContent = formatMoney(payment.orderAmount);
+        els.couponAmount.textContent = formatMoney(payment.couponAmount || 0);
+        els.receiveAmount.textContent = formatMoney(payment.payable);
+        showScreen(els.detailScreen);
+      }
+
+      function confirmCollection() {
+        if (!pending) return;
+        const collectResult = parkState.actions.collectPayment({
+          parkId: PARK_ID,
+          userId: pending.userId,
+          merchantId: MERCHANT_ID,
+          amount: pending.payable,
+          couponId: pending.couponId || undefined,
+          requestId: pending.requestId
+        });
+        if (collectResult.ok) {
+          clearPending();
+          showResult(true, '已按折后金额入账', pending.payable);
+        } else {
+          const message = collectResult.code === 'INSUFFICIENT_BALANCE' ? '用户余额不足，收款失败' : '收款失败：' + collectResult.code;
+          showResult(false, message, pending.payable);
+        }
+      }
+
+      function showResult(success, subtitle, amount) {
+        showScreen(els.resultScreen);
+        els.resultIcon.className = 'result-icon ' + (success ? 'success' : 'fail');
+        els.resultIcon.textContent = success ? '✓' : '✕';
+        els.resultTitle.textContent = success ? '收款成功' : '收款失败';
+        els.resultSubtitle.textContent = subtitle;
+        els.resultAmount.textContent = '¥' + formatMoney(amount);
+        els.resultTime.textContent = formatTime(new Date());
+      }
+
+      els.scanBtn.addEventListener('click', function () {
+        pending = readPending();
+        if (pending) showDetail(pending);
+        else showScreen(els.emptyScreen);
+      });
+      els.confirmBtn.addEventListener('click', confirmCollection);
+
+      showScreen(els.scanScreen);
     })();
   </script>
   <script src="shared-nav.js"></script>

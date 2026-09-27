@@ -6,13 +6,62 @@
   <title>付款码</title>
   <link rel="stylesheet" href="shared-styles.css">
   <style>
-    .payment-code-page { padding: 14px var(--page-padding) 18px; }
-    .payment-code-panel { background: var(--card-bg); border-radius: var(--radius-card); box-shadow: var(--shadow-card); padding: 22px 18px 20px; text-align: center; }
-    .payment-code-panel h1 { margin: 0 0 18px; font-size: 18px; }
-    .payment-code-tip { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
-    .payment-code-guide { margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--divider); color: var(--ink-light); font-size: 13px; line-height: 1.7; }
-    .payment-code-actions { margin-top: 18px; }
-    .payment-code-actions .btn { width: 100%; min-height: 42px; text-decoration: none; }
+    .app-content { padding: 14px var(--page-padding) 18px; }
+    .view[hidden] { display: none; }
+    .setup-card { padding: 18px 16px; background: var(--card-bg); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+    .field-label { display: block; margin: 0 0 8px; color: var(--ink-light); font-size: 13px; font-weight: 650; }
+    .amount-input {
+      box-sizing: border-box;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-small);
+      background: var(--page-bg);
+      transition: border-color 0.15s ease;
+    }
+    .amount-input:focus-within { border-color: var(--info); }
+    .amount-input .currency { font-size: 20px; font-weight: 700; color: var(--ink); }
+    .amount-input input { flex: 1; border: 0; outline: none; background: transparent; font: inherit; font-size: 22px; font-weight: 700; color: var(--ink); }
+    .coupon-list { display: grid; gap: 10px; margin: 18px 0 0; }
+    .coupon-option {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-small);
+      background: var(--page-bg);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .coupon-option.active { border-color: var(--info); background: var(--info-bg); box-shadow: 0 0 0 1px var(--info); }
+    .coupon-option .coupon-name { color: var(--ink); font-size: 13px; }
+    .coupon-option .coupon-value { flex: 0 0 auto; color: var(--error); font-size: 15px; font-weight: 700; }
+    .coupon-option.is-used { opacity: 0.5; cursor: not-allowed; }
+    .coupon-empty { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+    .payable-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--divider);
+    }
+    .payable-summary label { color: var(--muted); font-size: 12px; }
+    .payable-summary b { color: var(--ink); font-size: 20px; }
+    .payable-summary b small { font-size: 13px; margin-right: 1px; }
+    .setup-action { margin-top: 16px; }
+    .setup-action .btn { width: 100%; }
+    .setup-action .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .code-card { padding: 22px 18px 20px; background: var(--card-bg); border-radius: var(--radius-card); box-shadow: var(--shadow-card); text-align: center; }
+    .code-card h1 { margin: 0 0 18px; font-size: 18px; }
+    .code-tip { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+    .code-guide { margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--divider); color: var(--ink-light); font-size: 13px; line-height: 1.7; text-align: left; }
+    .code-meta { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-small); background: var(--info-bg); color: var(--muted); font-size: 12px; text-align: left; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -21,14 +70,31 @@
       <div class="status-bar"><span>9:41</span><span class="status-icons"><span class="signal"><i></i><i></i><i></i><i></i></span><span>5G</span><span class="battery"><b></b></span></span></div>
       <div class="app-shell">
         <header class="topbar"><a href="user-wallet.html" class="back" aria-label="返回">‹</a><strong>付款码</strong><span aria-hidden="true"></span></header>
-        <main class="payment-code-page">
-          <section class="payment-code-panel" aria-labelledby="payment-code-title">
-            <h1 id="payment-code-title">储值付款码</h1>
-            <div id="qr-code" class="dynamic-qr dynamic-qr-payment" role="img" aria-label="储值付款二维码"></div>
-            <p id="refresh-tip" class="payment-code-tip">60 秒后自动刷新</p>
-            <p class="payment-code-guide">付款时向园区商户出示此码。</p>
-            <div class="payment-code-actions">
-              <a class="btn btn-primary" id="scan-link" href="merchant-scan.html">模拟商户扫码</a>
+        <main class="app-content">
+          <section class="view" id="payment-setup-view">
+            <div class="setup-card">
+              <label class="field-label" for="order-amount-input">订单金额（请向商户确认）</label>
+              <div class="amount-input">
+                <span class="currency">¥</span>
+                <input type="number" id="order-amount-input" inputmode="decimal" min="1" max="99999" step="1" placeholder="输入订单金额">
+              </div>
+              <div id="coupon-options" class="coupon-list"></div>
+              <div class="payable-summary">
+                <label>实付金额</label>
+                <b><small>¥</small><span id="payable-amount">0.00</span></b>
+              </div>
+              <div class="setup-action">
+                <button class="btn btn-primary" id="initiate-btn" type="button" disabled>发起付款</button>
+              </div>
+            </div>
+          </section>
+          <section class="view" id="payment-code-view" hidden>
+            <div class="code-card">
+              <h1>储值付款码</h1>
+              <div id="qr-code" class="dynamic-qr dynamic-qr-payment" role="img" aria-label="储值付款二维码"></div>
+              <p id="refresh-tip" class="code-tip">60 秒后自动刷新</p>
+              <div class="code-meta" id="code-meta"></div>
+              <p class="code-guide">付款时向园区商户出示此码，商户扫码后将按折后金额收款。</p>
             </div>
           </section>
         </main>
@@ -37,41 +103,155 @@
     </div>
   </div>
 
+  <script src="shared-state.js"></script>
   <script>
     (function () {
       'use strict';
-      const qr = document.getElementById('qr-code');
-      const refreshTip = document.getElementById('refresh-tip');
+      const owner = { parkId: 'park-001', userId: 'U001' };
+      const els = {
+        setupView: document.getElementById('payment-setup-view'),
+        codeView: document.getElementById('payment-code-view'),
+        amountInput: document.getElementById('order-amount-input'),
+        couponOptions: document.getElementById('coupon-options'),
+        payable: document.getElementById('payable-amount'),
+        initiateBtn: document.getElementById('initiate-btn'),
+        qrCode: document.getElementById('qr-code'),
+        refreshTip: document.getElementById('refresh-tip'),
+        codeMeta: document.getElementById('code-meta')
+      };
+
+      let selectedCoupon = null;
       let secondsRemaining = 60;
       let refreshTimer = null;
 
+      function availableCoupons() {
+        return parkState.state.coupons.filter(function (coupon) {
+          return coupon.userId === owner.userId && coupon.status === 'active';
+        });
+      }
+
+      function currentOrderAmount() {
+        const raw = els.amountInput.value.trim();
+        return raw ? Math.max(0, parseFloat(raw)) : 0;
+      }
+
+      function currentPayable() {
+        const amount = currentOrderAmount();
+        const couponAmount = selectedCoupon ? selectedCoupon.amount : 0;
+        return Math.max(0, amount - couponAmount);
+      }
+
+      function refreshPayable() {
+        els.payable.textContent = formatMoney(currentPayable());
+        els.initiateBtn.disabled = currentOrderAmount() <= 0;
+        els.initiateBtn.textContent = currentOrderAmount() > 0 ? '发起付款' : '请输入订单金额';
+      }
+
+      function renderCoupons() {
+        els.couponOptions.replaceChildren();
+        const coupons = availableCoupons();
+        if (!coupons.length) {
+          const empty = document.createElement('p');
+          empty.className = 'coupon-empty';
+          empty.textContent = '暂无可用优惠券';
+          els.couponOptions.appendChild(empty);
+          return;
+        }
+        coupons.forEach(function (coupon) {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'coupon-option' + (selectedCoupon && selectedCoupon.id === coupon.id ? ' active' : '');
+          option.dataset.couponId = coupon.id;
+          option.dataset.amount = String(coupon.amount);
+          const name = document.createElement('span');
+          name.className = 'coupon-name';
+          name.textContent = coupon.name + '（抵扣 ¥' + formatMoney(coupon.amount) + '）';
+          const value = document.createElement('span');
+          value.className = 'coupon-value';
+          value.textContent = '-¥' + formatMoney(coupon.amount);
+          option.appendChild(name);
+          option.appendChild(value);
+          els.couponOptions.appendChild(option);
+        });
+        document.querySelectorAll('.coupon-option').forEach(function (option) {
+          option.addEventListener('click', function () {
+            const couponId = option.dataset.couponId;
+            if (!couponId) return;
+            selectedCoupon = selectedCoupon && selectedCoupon.id === couponId
+              ? null
+              : availableCoupons().find(function (item) { return item.id === couponId; }) || null;
+            renderCoupons();
+            refreshPayable();
+          });
+        });
+      }
+
+      els.amountInput.addEventListener('input', refreshPayable);
+
       function renderQR() {
-        qr.innerHTML = '';
+        els.qrCode.innerHTML = '';
         for (let i = 0; i < 25 * 25; i++) {
           const cell = document.createElement('span');
           cell.className = Math.random() < 0.5 ? 'filled' : '';
-          qr.appendChild(cell);
+          els.qrCode.appendChild(cell);
         }
       }
 
       function refreshCode() {
         renderQR();
         secondsRemaining = 60;
-        refreshTip.textContent = '60 秒后自动刷新';
+        els.refreshTip.textContent = '60 秒后自动刷新';
       }
 
       function startRefreshTimer() {
         if (refreshTimer) clearInterval(refreshTimer);
-        refreshTimer = setInterval(() => {
+        refreshTimer = setInterval(function () {
           secondsRemaining -= 1;
           if (secondsRemaining <= 0) refreshCode();
-          else refreshTip.textContent = secondsRemaining + ' 秒后自动刷新';
+          else els.refreshTip.textContent = secondsRemaining + ' 秒后自动刷新';
         }, 1000);
       }
 
-      window.addEventListener('pagehide', () => { if (refreshTimer) clearInterval(refreshTimer); });
-      refreshCode();
-      startRefreshTimer();
+      function showSetup() {
+        selectedCoupon = null;
+        els.codeView.hidden = true;
+        els.setupView.hidden = false;
+        if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+        renderCoupons();
+        refreshPayable();
+      }
+
+      function initiatePayment() {
+        const orderAmount = currentOrderAmount();
+        if (orderAmount <= 0) return;
+        const couponAmount = selectedCoupon ? selectedCoupon.amount : 0;
+        const pending = {
+          userId: owner.userId,
+          orderAmount: orderAmount,
+          couponId: selectedCoupon ? selectedCoupon.id : null,
+          couponAmount: couponAmount,
+          payable: Math.max(0, orderAmount - couponAmount),
+          requestId: 'REQ-' + Date.now(),
+          createdAt: new Date().toISOString().slice(0, 16).replace('T', ' ')
+        };
+        try {
+          window.localStorage.setItem('parkPendingPayment', JSON.stringify(pending));
+        } catch (error) { /* 存储不可用时仍可展示付款码 */ }
+        els.setupView.hidden = true;
+        els.codeView.hidden = false;
+        if (els.codeMeta) {
+          els.codeMeta.textContent = '订单 ¥' + formatMoney(pending.orderAmount) +
+            (pending.couponAmount > 0 ? '，优惠券抵扣 ¥' + formatMoney(pending.couponAmount) : '') +
+            '，商户将收款 ¥' + formatMoney(pending.payable) + '。';
+        }
+        refreshCode();
+        startRefreshTimer();
+      }
+
+      els.initiateBtn.addEventListener('click', initiatePayment);
+      window.addEventListener('pagehide', function () { if (refreshTimer) clearInterval(refreshTimer); });
+
+      showSetup();
     })();
   </script>
   <script src="shared-nav.js"></script>

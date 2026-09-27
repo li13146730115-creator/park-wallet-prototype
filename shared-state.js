@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'parkStateV2';
   const VERSION_KEY = 'parkStateV2Version';
-  const DATA_VERSION = 'demo-2026-09-23-1';
+  const DATA_VERSION = 'demo-2026-09-24-1';
   const COLLECTION_KEYS = [
     'parks',
     'enterprises',
@@ -18,7 +18,8 @@
     'invoiceTitles',
     'invoiceRecords',
     'pendingSettlements',
-    'reconciliationRows'
+    'reconciliationRows',
+    'coupons'
   ];
   const TOP_LEVEL_KEYS = COLLECTION_KEYS.concat(['user', 'merchantConfig']);
   const MAX_ID_LENGTH = 64;
@@ -127,6 +128,9 @@
     ],
     invoiceRecords: [],
     pendingSettlements: [],
+    coupons: [
+      { id: 'CPN-0001', userId: 'U001', name: '新客立减券', amount: 5, status: 'active' }
+    ],
     reconciliationRows: [
       {
         id: 'RC-DEMO-01',
@@ -306,6 +310,7 @@
       });
     })) return false;
     if (!value.merchants.every(item => parkIds.has(item.parkId) && isSafeText(item.name) && ['active', 'inactive'].includes(item.status))) return false;
+    if (!value.coupons.every(item => userIds.has(item.userId) && isSafeText(item.name) && isMoney(item.amount, false) && ['active', 'used'].includes(item.status))) return false;
     if (!validMerchantConfig(value.merchantConfig, merchantIds)) return false;
     if (!userIds.has(value.user.id) || !parkIds.has(value.user.homeParkId)) return false;
 
@@ -918,7 +923,13 @@
       return result(false, 'VALIDATION_FAILED');
     }
 
+    const coupon = input.couponId != null
+      ? state.coupons.find(item => item.id === input.couponId && item.userId === input.userId && item.status === 'active') || null
+      : null;
+    if (input.couponId != null && !coupon) return result(false, 'COUPON_INVALID');
+
     const amountCents = toCents(input.amount);
+    const couponCents = coupon ? toCents(coupon.amount) : 0;
     const enterpriseBalance = account.enterpriseBalances[0] || null;
     const enterpriseCents = enterpriseBalance ? Math.min(toCents(enterpriseBalance.available), amountCents) : 0;
     const personalCents = amountCents - enterpriseCents;
@@ -935,6 +946,9 @@
       userId: input.userId,
       merchantId: merchant.id,
       amount: input.amount,
+      originalAmount: coupon ? fromCents(amountCents + couponCents) : input.amount,
+      couponId: coupon ? coupon.id : null,
+      couponAmount: coupon ? coupon.amount : 0,
       enterpriseDeductions,
       personalAmount,
       rechargeParkIds: traceRechargeParkIds(input.userId, enterpriseDeductions, personalAmount, account.homeParkId),
@@ -979,6 +993,11 @@
       });
     }
     state.orders.push(order);
+    if (coupon) {
+      coupon.status = 'used';
+      coupon.usedAt = createdAt;
+      coupon.orderId = order.id;
+    }
     return successful('PAYMENT_SUCCEEDED', { order });
   }
 
