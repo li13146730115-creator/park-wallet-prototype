@@ -208,7 +208,7 @@ Object.keys(FILES).forEach(name => {
 
 test('所有本地页面链接均指向存在的文件', () => {
   const missingLinks = [];
-  const externalProtocol = /^(?:https?:|mailto:|tel:|javascript:)/i;
+  const externalProtocol = /^(?:https?:|mailto:|tel:|javascript:|data:)/i;
   fs.readdirSync(BASE_DIR).filter(name => name.endsWith('.html')).forEach(sourceName => {
     const source = fs.readFileSync(path.join(BASE_DIR, sourceName), 'utf8');
     const hrefPattern = /href\s*=\s*["']([^"']+)["']/gi;
@@ -240,7 +240,7 @@ test('个人自定义充值金额可启用去支付并携带正确金额', () =>
       addEventListener(type, handler) { listeners[type] = handler; },
       setAttribute() {},
       querySelector() { return { addEventListener() {} }; },
-      trigger(type) { assert(listeners[type], id + ' 缺少 ' + type + ' 事件'); listeners[type].call(this, { stopPropagation() {} }); }
+      trigger(type, event) { assert(listeners[type], id + ' 缺少 ' + type + ' 事件'); listeners[type].call(this, Object.assign({ target: this, stopPropagation() {} }, event || {})); }
     };
   }
   ['current-balance', 'custom-input', 'pay-amount', 'pay-btn', 'tier-grid', 'more-button', 'more-menu'].forEach(id => elements.set(id, element(id)));
@@ -1306,14 +1306,30 @@ test('注销申请状态一律展示中文而非英文枚举', () => {
 function createElementStub(id) {
   const listeners = {};
   return {
-    id, value: '', disabled: true, textContent: '', hidden: true, dataset: {}, innerHTML: '',
+    id,
+    type: '',
+    value: '',
+    checked: false,
+    disabled: true,
+    min: '',
+    step: '',
+    placeholder: '',
+    textContent: '',
+    hidden: true,
+    dataset: {},
+    innerHTML: '',
+    children: [],
+    className: '',
     classList: { add() {}, remove() {} },
     addEventListener(type, handler) { listeners[type] = handler; },
-    setAttribute() {},
+    setAttribute(name, value) { this[name] = String(value); },
     querySelector() { return { addEventListener() {} }; },
-    appendChild() {},
-    replaceChildren() {},
-    trigger(type) { assert(listeners[type], id + ' 缺少 ' + type + ' 事件'); listeners[type].call(this, { stopPropagation() {} }); }
+    appendChild(child) { this.children.push(child); return child; },
+    replaceChildren(...children) { this.children = children; },
+    trigger(type, event) {
+      assert(listeners[type], id + ' 缺少 ' + type + ' 事件');
+      listeners[type].call(this, Object.assign({ target: this, stopPropagation() {} }, event || {}));
+    }
   };
 }
 
@@ -1326,7 +1342,9 @@ function createPageHarness(pageName, ids, options) {
   const document = {
     getElementById(id) { return elements.get(id); },
     querySelectorAll(selector) { return selector === '.coupon-option' ? couponOptions : []; },
-    createElement() { return { className: '', textContent: '', dataset: {}, classList: { add() {}, remove() {} }, appendChild() {}, addEventListener() {} }; },
+    createElement(tagName) {
+      return createElementStub(String(tagName || 'dynamic-element'));
+    },
     addEventListener() {}
   };
   context.window.document = document;
@@ -1416,17 +1434,29 @@ function readDraft(window) {
   } catch (error) { return null; }
 }
 
-test('企业充值三页流：充值页支持Excel导入并写入待审核草稿', () => {
-  const harness = createPageHarness('enterpriseRecharge', ['employeeList', 'summaryList', 'totalAmount', 'payButton', 'feedback', 'excel-input', 'excel-import-btn']);
+test('企业充值三页流：下载模板并上传表格后写入待审核草稿', () => {
+  const source = readRequired('enterpriseRecharge');
+  assert(source.includes('excel-template-download'), '充值页应提供 Excel 模板下载入口');
+  assert(/download=["'][^"']+\.csv["']/.test(source), '模板下载应提供 CSV 文件名');
+  assert(/type=["']file["']/.test(source), '充值页应提供表格文件上传控件');
+  assert(source.includes('accept=".csv,text/csv"'), '上传控件应明确支持 CSV 表格');
+  assert(!source.includes('id="excel-input"'), '充值页不得继续使用文本粘贴输入');
+
+  const harness = createPageHarness('enterpriseRecharge', ['employeeList', 'summaryList', 'totalAmount', 'payButton', 'feedback', 'excel-file']);
+  harness.context.window.FileReader = function () {
+    this.onload = null;
+    this.onerror = null;
+    this.readAsText = file => this.onload({ target: { result: file.content } });
+  };
   harness.run();
-  const excelInput = harness.elements.get('excel-input');
-  excelInput.value = '13800001001,100';
-  harness.elements.get('excel-import-btn').trigger('click');
+  const excelFile = harness.elements.get('excel-file');
+  excelFile.files = [{ name: 'enterprise-recharge.csv', content: '手机号,金额\n13800131234,100' }];
+  excelFile.trigger('change', { target: excelFile });
   harness.elements.get('payButton').trigger('click');
   const draft = readDraft(harness.context.window);
-  assert(draft, '导入并点击下一步后应写入 parkEnterpriseRechargeDraft 待审核草稿');
+  assert(draft, '导入并点击下一步后应写入 parkEnterpriseRechargeDraft 待审核草稿；反馈：' + harness.elements.get('feedback').textContent + '；按钮禁用：' + harness.elements.get('payButton').disabled);
   assertEqual(draft.items.length, 1, '草稿应包含一条导入的充值明细');
-  assertEqual(draft.items[0].userId, 'U101', '导入手机号 13800001001 应匹配员工 U101');
+  assertEqual(draft.items[0].userId, 'U001', '导入手机号 13800131234 应匹配员工 U001');
   assertEqual(draft.items[0].amount, 100, '导入的充值金额应为 100');
   assert(typeof draft.requestId === 'string' && draft.requestId.length > 0, '草稿应携带 requestId');
   assertEqual(harness.parkState.state.rechargeBatches.filter(batch => batch.requestId === draft.requestId).length, 0, '进入审核前不得创建充值批次');
@@ -1438,10 +1468,10 @@ test('企业充值三页流：确认审核页通过后创建待支付批次并�
   const passHarness = createPageHarness('enterpriseRechargeConfirm', ['draft-list', 'draft-total', 'approve-btn', 'reject-btn', 'confirm-feedback']);
   passHarness.context.window.localStorage.setItem(draftKey(), JSON.stringify({
     enterpriseId: 'E001', rechargeParkId: 'park-001', requestId: 'ER-TEST-1', createdAt: '2026-09-28 10:00',
-    items: [{ userId: 'U101', amount: 100 }]
+    items: [{ userId: 'U001', amount: 100 }]
   }));
   passHarness.run();
-  assert(passHarness.elements.get('draft-list').textContent.includes('U101') || passHarness.elements.get('draft-list').innerHTML.includes('U101'), '确认审核页应展示待审核员工明细');
+  assert(passHarness.elements.get('draft-list').textContent.includes('U001') || passHarness.elements.get('draft-list').innerHTML.includes('U001'), '确认审核页应展示待审核员工明细');
   passHarness.elements.get('approve-btn').trigger('click');
   const batches = passHarness.parkState.state.rechargeBatches.filter(batch => batch.requestId === 'ER-TEST-1');
   assertEqual(batches.length, 1, '审核通过后应创建一条充值批次');
@@ -1455,7 +1485,7 @@ test('企业充值三页流：确认审核页通过后创建待支付批次并�
   const rejectHarness = createPageHarness('enterpriseRechargeConfirm', ['draft-list', 'draft-total', 'approve-btn', 'reject-btn', 'confirm-feedback']);
   rejectHarness.context.window.localStorage.setItem(draftKey(), JSON.stringify({
     enterpriseId: 'E001', rechargeParkId: 'park-001', requestId: 'ER-TEST-REJECT', createdAt: '2026-09-28 10:00',
-    items: [{ userId: 'U101', amount: 100 }]
+    items: [{ userId: 'U001', amount: 100 }]
   }));
   rejectHarness.run();
   rejectHarness.elements.get('reject-btn').trigger('click');
@@ -1469,13 +1499,13 @@ test('企业充值三页流：企业在线支付页确认后完成入账', () =>
   const harness = createPageHarness('enterprisePayment', ['channel-list', 'pay-confirm-btn', 'payment-feedback']);
   const created = harness.parkState.actions.createEnterpriseRecharge({
     enterpriseId: 'E001', rechargeParkId: 'park-001', method: 'online', requestId: 'ER-TEST-2',
-    items: [{ userId: 'U101', amount: 100 }]
+    items: [{ userId: 'U001', amount: 100 }]
   });
   assert(created.ok, '预置待支付批次应创建成功，实际：' + created.code);
-  const balanceBefore = harness.parkState.selectors.getEnterpriseBalance('U101', 'E001').available;
+  const balanceBefore = harness.parkState.selectors.getEnterpriseBalance('U001', 'E001').available;
   harness.context.window.localStorage.setItem(draftKey(), JSON.stringify({
     enterpriseId: 'E001', rechargeParkId: 'park-001', requestId: 'ER-TEST-2', batchId: created.data.id, createdAt: '2026-09-28 10:00',
-    items: [{ userId: 'U101', amount: 100 }]
+    items: [{ userId: 'U001', amount: 100 }]
   }));
   harness.run();
   assert(harness.parkState.state.rechargeBatches.find(batch => batch.id === created.data.id), '共享状态应包含预置批次');
@@ -1483,8 +1513,8 @@ test('企业充值三页流：企业在线支付页确认后完成入账', () =>
   const batch = harness.parkState.state.rechargeBatches.find(row => row.id === created.data.id);
   assertEqual(batch.status, 'succeeded', '支付确认后批次状态应为已完成');
   assertEqual(batch.paymentStatus, 'succeeded', '支付确认后支付状态应为已支付');
-  assertEqual(harness.parkState.selectors.getEnterpriseBalance('U101', 'E001').available - balanceBefore, 100, '员工 U101 的 E001 企业余额应增加 100');
-  const tx = harness.parkState.state.transactions.find(row => row.type === 'enterprise_recharge' && row.userId === 'U101' && row.batchId === created.data.id);
+  assertEqual(harness.parkState.selectors.getEnterpriseBalance('U001', 'E001').available - balanceBefore, 100, '员工 U001 的 E001 企业余额应增加 100');
+  const tx = harness.parkState.state.transactions.find(row => row.type === 'enterprise_recharge' && row.userId === 'U001' && row.batchId === created.data.id);
   assert(tx, '应生成企业充值交易流水');
   assertEqual(tx.amount, 100, '交易流水金额应为 100');
   const invoice = harness.parkState.state.invoiceRecords.find(row => row.type === 'recharge_receipt' && row.sourceId === created.data.id);

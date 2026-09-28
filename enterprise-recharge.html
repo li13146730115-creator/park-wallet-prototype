@@ -62,9 +62,9 @@
           <p class="panel-intro">勾选本次批量充值员工，并为每位员工录入充值金额。</p>
           <div class="excel-block" style="margin-bottom:14px;padding:12px;border:1px dashed var(--border);border-radius:10px;">
             <h2 style="font-size:15px;">Excel 导入</h2>
-            <p class="panel-intro" style="margin-bottom:8px;">每行格式：手机号，金额（支持中英文逗号、Tab 分隔）。</p>
-            <textarea id="excel-input" rows="4" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font:inherit;font-size:13px;box-sizing:border-box;" placeholder="13800001001,100&#10;13800001002,200"></textarea>
-            <button class="btn btn-white" id="excel-import-btn" type="button" style="margin-top:8px;">导入并勾选</button>
+            <p class="panel-intro" style="margin-bottom:8px;">下载模板，在线下表格中填写手机号和金额后上传。当前支持 CSV 格式。</p>
+            <a id="excel-template-download" class="btn btn-white" download="企业批量充值模板.csv" href="data:text/csv;charset=utf-8,%EF%BB%BF手机号%2C金额%0A13800001001%2C100">下载 Excel 模板</a>
+            <input id="excel-file" type="file" accept=".csv,text/csv" style="display:block;margin-top:10px;width:100%;font:inherit;font-size:13px;">
           </div>
           <div class="employee-list" id="employeeList"></div>
         </section>
@@ -179,39 +179,56 @@
         });
       }
 
-      const excelInput = document.getElementById('excel-input');
-      const excelImportBtn = document.getElementById('excel-import-btn');
-      excelImportBtn.addEventListener('click', function () {
+      const excelFile = document.getElementById('excel-file');
+      excelFile.addEventListener('change', function (event) {
         feedback.textContent = '';
-        const text = (excelInput.value || '').trim();
-        if (!text) {
-          setFeedback('请先粘贴 Excel 内容（每行：手机号，金额）。', 'error');
+        const file = event.target.files && event.target.files[0];
+        if (!file) {
+          setFeedback('请选择需要导入的 CSV 表格文件。', 'error');
           return;
         }
-        let matched = 0;
-        let skipped = 0;
-        text.split(/\r?\n/).forEach(function (line) {
-          const trimmed = line.trim();
-          if (!trimmed) return;
-          const parts = trimmed.split(/[,，\t]/);
-          if (parts.length < 2) { skipped += 1; return; }
-          const phone = parts[0].trim();
-          const amountText = parts[1].trim();
-          if (!/^\d+(?:\.\d{1,2})?$/.test(amountText)) { skipped += 1; return; }
-          const amount = Number(amountText);
-          const row = rows.find(function (item) { return item.user.phone === phone; });
-          if (!row || !Number.isFinite(amount) || amount <= 0) { skipped += 1; return; }
-          row.checkbox.checked = true;
-          row.amount.disabled = false;
-          row.amount.value = amountText;
-          matched += 1;
-        });
-        renderSummary();
-        if (matched) {
-          setFeedback('已导入 ' + matched + ' 条充值明细' + (skipped ? '，忽略 ' + skipped + ' 条无效行' : '') + '，请核对后进入下一步。', 'success');
-        } else {
-          setFeedback('未匹配到任何员工，请检查手机号是否正确。', 'error');
+        if (!/\.csv$/i.test(file.name || '') && file.type !== 'text/csv') {
+          setFeedback('文件格式不支持，请上传 CSV 表格文件。', 'error');
+          return;
         }
+        const reader = new FileReader();
+        reader.onerror = function () { setFeedback('表格读取失败，请重新选择文件。', 'error'); };
+        reader.onload = function (loadEvent) {
+          const text = String(loadEvent.target.result || '').replace(/^\uFEFF/, '').trim();
+          if (!text) {
+            setFeedback('表格内容为空，请填写手机号和金额后再上传。', 'error');
+            return;
+          }
+          const lines = text.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean);
+          const header = lines.shift().split(/[,，\t]/).map(function (cell) { return cell.trim(); });
+          if (header.length < 2 || header[0] !== '手机号' || header[1] !== '金额') {
+            setFeedback('表头错误，请使用下载模板中的“手机号、金额”列。', 'error');
+            return;
+          }
+          let matched = 0;
+          let skipped = 0;
+          lines.forEach(function (line) {
+            const parts = line.split(/[,，\t]/);
+            if (parts.length < 2) { skipped += 1; return; }
+            const phone = parts[0].trim();
+            const amountText = parts[1].trim();
+            if (!/^\d+(?:\.\d{1,2})?$/.test(amountText)) { skipped += 1; return; }
+            const amount = Number(amountText);
+            const row = rows.find(function (item) { return item.user.phone === phone; });
+            if (!row || !Number.isFinite(amount) || amount <= 0) { skipped += 1; return; }
+            row.checkbox.checked = true;
+            row.amount.disabled = false;
+            row.amount.value = amountText;
+            matched += 1;
+          });
+          renderSummary();
+          if (matched) {
+            setFeedback('已导入 ' + matched + ' 条充值明细' + (skipped ? '，忽略 ' + skipped + ' 条无效行' : '') + '，请核对后进入下一步。', 'success');
+          } else {
+            setFeedback('未匹配到任何有效员工，请检查手机号和金额是否正确。', 'error');
+          }
+        };
+        reader.readAsText(file);
       });
 
       if (!rows.length && enterprise) {
