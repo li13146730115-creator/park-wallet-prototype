@@ -60,6 +60,12 @@
         <section class="panel">
           <h2>选择员工</h2>
           <p class="panel-intro">勾选本次批量充值员工，并为每位员工录入充值金额。</p>
+          <div class="excel-block" style="margin-bottom:14px;padding:12px;border:1px dashed var(--border);border-radius:10px;">
+            <h2 style="font-size:15px;">Excel 导入</h2>
+            <p class="panel-intro" style="margin-bottom:8px;">每行格式：手机号，金额（支持中英文逗号、Tab 分隔）。</p>
+            <textarea id="excel-input" rows="4" style="width:100%;border:1px solid var(--border);border-radius:8px;padding:10px;font:inherit;font-size:13px;box-sizing:border-box;" placeholder="13800001001,100&#10;13800001002,200"></textarea>
+            <button class="btn btn-white" id="excel-import-btn" type="button" style="margin-top:8px;">导入并勾选</button>
+          </div>
           <div class="employee-list" id="employeeList"></div>
         </section>
         <section class="panel">
@@ -145,7 +151,6 @@
           row.className = 'employee-row';
           const checkbox = document.createElement('input');
           checkbox.type = 'checkbox';
-          checkbox.setAttribute('aria-label', '选择' + user.name);
           const copy = document.createElement('span');
           const name = document.createElement('strong');
           name.textContent = user.name;
@@ -160,7 +165,6 @@
           amount.step = '0.01';
           amount.placeholder = '充值金额';
           amount.disabled = true;
-          amount.setAttribute('aria-label', user.name + '充值金额');
           row.appendChild(checkbox);
           row.appendChild(copy);
           row.appendChild(amount);
@@ -174,6 +178,41 @@
           amount.addEventListener('input', renderSummary);
         });
       }
+
+      const excelInput = document.getElementById('excel-input');
+      const excelImportBtn = document.getElementById('excel-import-btn');
+      excelImportBtn.addEventListener('click', function () {
+        feedback.textContent = '';
+        const text = (excelInput.value || '').trim();
+        if (!text) {
+          setFeedback('请先粘贴 Excel 内容（每行：手机号，金额）。', 'error');
+          return;
+        }
+        let matched = 0;
+        let skipped = 0;
+        text.split(/\r?\n/).forEach(function (line) {
+          const trimmed = line.trim();
+          if (!trimmed) return;
+          const parts = trimmed.split(/[,，\t]/);
+          if (parts.length < 2) { skipped += 1; return; }
+          const phone = parts[0].trim();
+          const amountText = parts[1].trim();
+          if (!/^\d+(?:\.\d{1,2})?$/.test(amountText)) { skipped += 1; return; }
+          const amount = Number(amountText);
+          const row = rows.find(function (item) { return item.user.phone === phone; });
+          if (!row || !Number.isFinite(amount) || amount <= 0) { skipped += 1; return; }
+          row.checkbox.checked = true;
+          row.amount.disabled = false;
+          row.amount.value = amountText;
+          matched += 1;
+        });
+        renderSummary();
+        if (matched) {
+          setFeedback('已导入 ' + matched + ' 条充值明细' + (skipped ? '，忽略 ' + skipped + ' 条无效行' : '') + '，请核对后进入下一步。', 'success');
+        } else {
+          setFeedback('未匹配到任何员工，请检查手机号是否正确。', 'error');
+        }
+      });
 
       if (!rows.length && enterprise) {
         const empty = document.createElement('div');
@@ -189,26 +228,20 @@
           setFeedback('请选择员工并填写大于 0 的充值金额。', 'error');
           return;
         }
-        payButton.disabled = true;
-        const requestId = uniqueId('ER-WEB');
-        const created = parkState.actions.createEnterpriseRecharge({
-          enterpriseId: 'E001', rechargeParkId: 'park-001', method: 'online', requestId: requestId, items: items
-        });
-        if (!created.ok) {
-          setFeedback('充值清单创建失败：' + created.code + '。请核对员工和金额后重试。', 'error');
-          renderSummary();
+        const draft = {
+          enterpriseId: 'E001',
+          rechargeParkId: 'park-001',
+          requestId: uniqueId('ER-WEB'),
+          createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+          items: items
+        };
+        try {
+          window.localStorage.setItem('parkEnterpriseRechargeDraft', JSON.stringify(draft));
+        } catch (error) {
+          setFeedback('充值草稿保存失败，请检查浏览器存储空间后重试。', 'error');
           return;
         }
-        const paymentReference = uniqueId('PAY-WEB');
-        const confirmed = parkState.actions.confirmEnterpriseOnlinePayment(created.data.id, paymentReference);
-        if (!confirmed.ok) {
-          setFeedback('在线支付确认失败：' + confirmed.code + '。批次已保留，请稍后重试。', 'error');
-          renderSummary();
-          return;
-        }
-        setFeedback('在线支付成功，批次 ' + created.data.id + ' 已完成入账。', 'success');
-        rows.forEach(function (row) { row.checkbox.checked = false; row.amount.value = ''; row.amount.disabled = true; });
-        renderSummary();
+        window.location.href = 'enterprise-recharge-confirm.html';
       });
 
       renderSummary();

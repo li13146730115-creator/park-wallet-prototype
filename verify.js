@@ -36,7 +36,9 @@ const FILES = {
   adminRefunds: 'admin-refunds.html',
   adminSettlements: 'admin-settlements.html',
   adminReconciliation: 'admin-reconciliation.html',
-  userPaymentCode: 'user-payment-code.html'
+  userPaymentCode: 'user-payment-code.html',
+  enterpriseRechargeConfirm: 'enterprise-recharge-confirm.html',
+  enterprisePayment: 'enterprise-payment.html'
 };
 
 const results = [];
@@ -1153,7 +1155,9 @@ const PAGE_CONTRACTS = {
   adminEnterprises: ['企业管理员', '关联员工', '充值', '退款'],
   adminEnterpriseRecharge: ['支付凭证', '到账确认', '错误明细'],
   adminRechargeBatches: ['个人在线充值', '企业在线充值', '园区代企业充值'],
-  adminReconciliation: ['充值园区', '消费园区', '重复请求', '退款结算冲突']
+  adminReconciliation: ['充值园区', '消费园区', '重复请求', '退款结算冲突'],
+  enterpriseRechargeConfirm: ['充值清单', '审核', '通过'],
+  enterprisePayment: ['在线支付', '支付渠道', '企业']
 };
 
 Object.entries(PAGE_CONTRACTS).forEach(([name, fields]) => {
@@ -1400,6 +1404,120 @@ test('优惠券付款流：商户扫码无待支付单时展示空态', () => {
   assertEqual(harness.elements.get('empty-screen').hidden, false, '无待支付单时扫码应展示空态视图');
   assertEqual(harness.elements.get('detail-screen').hidden, true, '空态时不应展示明细视图');
   assert(readRequired('merchantScan').includes('用户余额不足，收款失败'), '商家扫码页应保留用户余额不足收款失败文案');
+});
+
+function draftKey() { return 'parkEnterpriseRechargeDraft'; }
+
+function readDraft(window) {
+  try {
+    const raw = window.localStorage.getItem(draftKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && Array.isArray(parsed.items) && parsed.items.length ? parsed : null;
+  } catch (error) { return null; }
+}
+
+test('企业充值三页流：充值页支持Excel导入并写入待审核草稿', () => {
+  const harness = createPageHarness('enterpriseRecharge', ['employeeList', 'summaryList', 'totalAmount', 'payButton', 'feedback', 'excel-input', 'excel-import-btn']);
+  harness.run();
+  const excelInput = harness.elements.get('excel-input');
+  excelInput.value = '13800001001,100';
+  harness.elements.get('excel-import-btn').trigger('click');
+  harness.elements.get('payButton').trigger('click');
+  const draft = readDraft(harness.context.window);
+  assert(draft, '导入并点击下一步后应写入 parkEnterpriseRechargeDraft 待审核草稿');
+  assertEqual(draft.items.length, 1, '草稿应包含一条导入的充值明细');
+  assertEqual(draft.items[0].userId, 'U101', '导入手机号 13800001001 应匹配员工 U101');
+  assertEqual(draft.items[0].amount, 100, '导入的充值金额应为 100');
+  assert(typeof draft.requestId === 'string' && draft.requestId.length > 0, '草稿应携带 requestId');
+  assertEqual(harness.parkState.state.rechargeBatches.filter(batch => batch.requestId === draft.requestId).length, 0, '进入审核前不得创建充值批次');
+  const target = new URL(harness.context.window.location.href, 'https://example.test/');
+  assertEqual(target.pathname, '/enterprise-recharge-confirm.html', '点击下一步后应跳转充值确认审核页');
+});
+
+test('企业充值三页流：确认审核页通过后创建待支付批次并跳转支付', () => {
+  const passHarness = createPageHarness('enterpriseRechargeConfirm', ['draft-list', 'draft-total', 'approve-btn', 'reject-btn', 'confirm-feedback']);
+  passHarness.context.window.localStorage.setItem(draftKey(), JSON.stringify({
+    enterpriseId: 'E001', rechargeParkId: 'park-001', requestId: 'ER-TEST-1', createdAt: '2026-09-28 10:00',
+    items: [{ userId: 'U101', amount: 100 }]
+  }));
+  passHarness.run();
+  assert(passHarness.elements.get('draft-list').textContent.includes('U101') || passHarness.elements.get('draft-list').innerHTML.includes('U101'), '确认审核页应展示待审核员工明细');
+  passHarness.elements.get('approve-btn').trigger('click');
+  const batches = passHarness.parkState.state.rechargeBatches.filter(batch => batch.requestId === 'ER-TEST-1');
+  assertEqual(batches.length, 1, '审核通过后应创建一条充值批次');
+  assertEqual(batches[0].status, 'pending_payment', '审核通过创建的批次应处于待支付状态');
+  assertEqual(batches[0].postingStatus, 'pending', '批次入账状态应保持待入账');
+  const afterApprove = readDraft(passHarness.context.window);
+  assert(afterApprove && afterApprove.batchId === batches[0].id, '审核通过后草稿应记录批次 batchId');
+  const target = new URL(passHarness.context.window.location.href, 'https://example.test/');
+  assertEqual(target.pathname, '/enterprise-payment.html', '审核通过后应跳转企业在线支付页');
+
+  const rejectHarness = createPageHarness('enterpriseRechargeConfirm', ['draft-list', 'draft-total', 'approve-btn', 'reject-btn', 'confirm-feedback']);
+  rejectHarness.context.window.localStorage.setItem(draftKey(), JSON.stringify({
+    enterpriseId: 'E001', rechargeParkId: 'park-001', requestId: 'ER-TEST-REJECT', createdAt: '2026-09-28 10:00',
+    items: [{ userId: 'U101', amount: 100 }]
+  }));
+  rejectHarness.run();
+  rejectHarness.elements.get('reject-btn').trigger('click');
+  assertEqual(readDraft(rejectHarness.context.window), null, '驳回后应清除待审核草稿');
+  assertEqual(rejectHarness.parkState.state.rechargeBatches.filter(batch => batch.requestId === 'ER-TEST-REJECT').length, 0, '驳回后不得创建充值批次');
+  const rejectTarget = new URL(rejectHarness.context.window.location.href, 'https://example.test/');
+  assertEqual(rejectTarget.pathname, '/enterprise-recharge.html', '驳回后应返回批量充值页');
+});
+
+test('企业充值三页流：企业在线支付页确认后完成入账', () => {
+  const harness = createPageHarness('enterprisePayment', ['channel-list', 'pay-confirm-btn', 'payment-feedback']);
+  const created = harness.parkState.actions.createEnterpriseRecharge({
+    enterpriseId: 'E001', rechargeParkId: 'park-001', method: 'online', requestId: 'ER-TEST-2',
+    items: [{ userId: 'U101', amount: 100 }]
+  });
+  assert(created.ok, '预置待支付批次应创建成功，实际：' + created.code);
+  const balanceBefore = harness.parkState.selectors.getEnterpriseBalance('U101', 'E001').available;
+  harness.context.window.localStorage.setItem(draftKey(), JSON.stringify({
+    enterpriseId: 'E001', rechargeParkId: 'park-001', requestId: 'ER-TEST-2', batchId: created.data.id, createdAt: '2026-09-28 10:00',
+    items: [{ userId: 'U101', amount: 100 }]
+  }));
+  harness.run();
+  assert(harness.parkState.state.rechargeBatches.find(batch => batch.id === created.data.id), '共享状态应包含预置批次');
+  harness.elements.get('pay-confirm-btn').trigger('click');
+  const batch = harness.parkState.state.rechargeBatches.find(row => row.id === created.data.id);
+  assertEqual(batch.status, 'succeeded', '支付确认后批次状态应为已完成');
+  assertEqual(batch.paymentStatus, 'succeeded', '支付确认后支付状态应为已支付');
+  assertEqual(harness.parkState.selectors.getEnterpriseBalance('U101', 'E001').available - balanceBefore, 100, '员工 U101 的 E001 企业余额应增加 100');
+  const tx = harness.parkState.state.transactions.find(row => row.type === 'enterprise_recharge' && row.userId === 'U101' && row.batchId === created.data.id);
+  assert(tx, '应生成企业充值交易流水');
+  assertEqual(tx.amount, 100, '交易流水金额应为 100');
+  const invoice = harness.parkState.state.invoiceRecords.find(row => row.type === 'recharge_receipt' && row.sourceId === created.data.id);
+  assert(invoice, '应生成充值收据 INV-RC-');
+  assertEqual(invoice.enterpriseId, 'E001', '收据应归属企业 E001');
+  assertEqual(invoice.amount, 100, '收据金额应为 100');
+  assertEqual(readDraft(harness.context.window), null, '支付完成后应清除草稿');
+  const target = new URL(harness.context.window.location.href, 'https://example.test/');
+  assertEqual(target.pathname, '/enterprise-batches.html', '支付完成后应跳转充值批次页');
+});
+
+test('企业充值流程：支付页提供可选择的支付渠道', () => {
+  const source = readRequired('enterprisePayment');
+  assert(/type\s*=\s*["']radio["']/.test(source) || /input\.type\s*=\s*["']radio["']/.test(source), '支付页应使用单选控件选择支付渠道');
+  assert(source.includes('channel'), '支付页应维护所选支付渠道');
+});
+
+test('企业充值流程：Excel 导入拒绝非法金额格式', () => {
+  const source = readRequired('enterpriseRecharge');
+  assert(!source.includes('parseFloat(parts[1])'), 'Excel 导入不得使用 parseFloat 接受非法前缀');
+  assert(/amountText|amountRaw|金额格式/.test(source), 'Excel 导入应先校验完整金额文本');
+});
+
+test('企业充值流程：草稿写入失败时不得跳转审核页', () => {
+  const source = readRequired('enterpriseRecharge');
+  assert(/setItem[\s\S]*catch[\s\S]*setFeedback/.test(source), '草稿写入失败应提示用户');
+  assert(!/catch \(error\) \{ \/\* 忽略 \*\/ \}\s*window\.location\.href = 'enterprise-recharge-confirm\.html'/.test(source), '草稿写入失败不得继续跳转');
+});
+
+test('企业充值流程：审核页已创建批次后不可再次驳回', () => {
+  const source = readRequired('enterpriseRechargeConfirm');
+  assert(source.includes('draft.batchId'), '审核页应识别已有 batchId 的草稿');
+  assert(/batchId[\s\S]*rejectBtn\.disabled/.test(source), '已有批次时应禁用驳回操作');
 });
 
 console.log('Results:');

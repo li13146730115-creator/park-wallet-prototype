@@ -26,7 +26,9 @@
   const MAX_TEXT_LENGTH = 120;
 
   function demoTime(daysAgo, hhmm) {
+    // daysAgo 为 0 时固定时刻可能落在未来（如上午 10:20 前运行），回退为当前时刻
     const date = new Date(Date.now() - daysAgo * 86400000);
+    if (daysAgo === 0) return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0') + ' ' + String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
     const pad = value => String(value).padStart(2, '0');
     return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' ' + hhmm;
   }
